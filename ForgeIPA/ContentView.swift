@@ -59,7 +59,13 @@ struct ContentView: View {
                         } else if selectedTab == 1 {
                             if let report = model.report { reportCard(report) }
                             else {
-                                ContentUnavailableView("Нет результатов", systemImage: "chart.bar.xaxis", description: Text("Сначала выберите IPA на вкладке «Главная»."))
+                                VStack(spacing: 10) {
+                                    Image(systemName: "chart.bar.xaxis").font(.system(size: 30, weight: .light)).foregroundStyle(.secondary)
+                                    Text("Нет результатов").font(.headline)
+                                    Text("Сначала выберите IPA на вкладке «Главная».").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity).padding(.vertical, 36)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 12) {
