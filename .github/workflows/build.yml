@@ -7,6 +7,8 @@ on:
       - "ForgeIPA/**"
       - "project.yml"
       - ".github/workflows/build.yml"
+      - "scripts/**"
+      - "ForgeIPA/Assets.xcassets/**"
 permissions:
   contents: read
 jobs:
