@@ -1,18 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-<defs>
- <radialGradient id="bg" cx="50%" cy="42%" r="72%"><stop offset="0" stop-color="#241044"/><stop offset="1" stop-color="#050309"/></radialGradient>
- <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f1d7ff"/><stop offset=".35" stop-color="#bd65ff"/><stop offset="1" stop-color="#6500d9"/></linearGradient>
- <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f5eaff"/><stop offset=".35" stop-color="#9d65d9"/><stop offset=".7" stop-color="#26123e"/><stop offset="1" stop-color="#b36bff"/></linearGradient>
- <filter id="glow"><feGaussianBlur stdDeviation="18" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-</defs>
-<rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
-<rect x="34" y="34" width="956" height="956" rx="205" fill="none" stroke="#8500ff" stroke-width="9" opacity=".85" filter="url(#glow)"/>
-<path d="M340 255h330l125 125v430H340z" fill="#10091c" stroke="url(#violet)" stroke-width="22" stroke-linejoin="round"/>
-<path d="M670 255v125h125" fill="#4d2077" stroke="url(#violet)" stroke-width="17" stroke-linejoin="round"/>
-<g transform="rotate(-39 510 520)" filter="url(#glow)">
- <path d="M475 455h90v420q0 30-30 30h-30q-30 0-30-30z" fill="url(#metal)" stroke="#d6a0ff" stroke-width="9"/>
- <path d="M390 365h270v125H390z" rx="25" fill="url(#metal)" stroke="#f1d8ff" stroke-width="12"/>
- <path d="M390 365h80v125h-80z" fill="#6d38a0" opacity=".8"/>
- <path d="M590 365h70v125h-70z" fill="#2b1643" opacity=".8"/>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d9a7ff"/><stop offset="1" stop-color="#7928d8"/></linearGradient></defs>
+<rect width="1024" height="1024" rx="230" fill="#100d17"/>
+<rect x="38" y="38" width="948" height="948" rx="205" fill="none" stroke="#30213f" stroke-width="8"/>
+<g transform="rotate(-38 512 512)" fill="url(#g)">
+ <rect x="477" y="420" width="70" height="440" rx="28"/>
+ <path d="M350 310h330a24 24 0 0 1 24 24v106H326V334a24 24 0 0 1 24-24z"/>
+ <path d="M326 410h378v40H326z" fill="#f0dcff" opacity=".9"/>
 </g>
 </svg>
