@@ -44,7 +44,7 @@ struct ContentView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.zip, UTType(filenameExtension: "ipa") ?? .data], allowsMultipleSelection: false) { result in
+            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
                 switch result {
                 case .success(let urls): if let url = urls.first { model.inspect(url) }
                 case .failure(let error): model.addLog("Ошибка выбора: \(error.localizedDescription)")
