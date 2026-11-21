@@ -8,7 +8,7 @@ struct MetadataSection: Codable, Identifiable {
     let count: UInt32
 }
 
-struct DumpReport: Codable {
+struct DumpReport: Encodable {
     let fileName: String
     let fileSize: Int64
     let hasUnity: Bool
