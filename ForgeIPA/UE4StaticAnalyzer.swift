@@ -17,6 +17,7 @@ struct UE4AnalysisResult {
 }
 
 /// Static, offline inspection of a packaged Unreal Engine iOS executable.
+/// This analyzer reports evidence only; it never treats string file offsets as runtime addresses.
 /// File offsets in this report refer to bytes in the Mach-O file, not runtime
 /// addresses or UObject offsets. No offsets are guessed.
 enum UE4StaticAnalyzer {
