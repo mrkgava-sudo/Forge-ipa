@@ -19,13 +19,14 @@ struct DumpReport: Encodable {
     let typeCount: Int
     let methodCount: Int
     let fieldCount: Int
+    let resolvedFieldOffsetCount: Int
     let dumpURL: URL?
     let analyzedAt: Date
     let exportURL: URL
 
     enum CodingKeys: String, CodingKey {
         case fileName, fileSize, hasUnity, metadataPath, nativeBinaryPath, metadataVersion, sections
-        case typeCount, methodCount, fieldCount, analyzedAt
+        case typeCount, methodCount, fieldCount, resolvedFieldOffsetCount, analyzedAt
     }
 }
 
@@ -161,19 +162,24 @@ final class DumperModel: ObservableObject {
             var typeCount = 0
             var methodCount = 0
             var fieldCount = 0
+            var resolvedFieldOffsetCount = 0
 
             if let metadata = foundMetadata {
                 addLog("Найден global-metadata.dat")
                 do {
                     let dumpFolder = FileManager.default.temporaryDirectory
                         .appendingPathComponent("ForgeIPA-Dump-\(UUID().uuidString)", isDirectory: true)
-                    let generated = try IL2CPPMetadataDumper.generate(from: metadata, outputDirectory: dumpFolder)
+                    let generated = try IL2CPPMetadataDumper.generate(from: metadata, nativeBinaryURL: foundNativeBinary, outputDirectory: dumpFolder)
                     version = generated.version
                     sections = generated.sections
                     dumpURL = generated.dumpURL
                     typeCount = generated.typeCount
                     methodCount = generated.methodCount
                     fieldCount = generated.fieldCount
+                    resolvedFieldOffsetCount = generated.resolvedFieldOffsetCount
+                    if resolvedFieldOffsetCount > 0 {
+                        addLog("Разрешены реальные смещения полей: \\(resolvedFieldOffsetCount).")
+                    }
                     addLog("Создан dump.cs: \(typeCount) типов, \(fieldCount) полей, \(methodCount) методов.")
                 } catch {
                     addLog("Генератор dump.cs не смог разобрать эту версию metadata: \(error.localizedDescription)")
@@ -196,6 +202,7 @@ final class DumperModel: ObservableObject {
                 typeCount: typeCount,
                 methodCount: methodCount,
                 fieldCount: fieldCount,
+                resolvedFieldOffsetCount: resolvedFieldOffsetCount,
                 dumpURL: dumpURL,
                 analyzedAt: Date(),
                 exportURL: export
