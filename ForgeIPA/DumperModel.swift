@@ -12,7 +12,9 @@ struct MetadataSection: Codable, Identifiable {
 struct DumpReport: Encodable {
     let fileName: String
     let fileSize: Int64
+    let engineName: String
     let hasUnity: Bool
+    let ue4MarkerCount: Int
     let metadataPath: String?
     let nativeBinaryPath: String?
     let metadataVersion: UInt32?
@@ -27,7 +29,7 @@ struct DumpReport: Encodable {
     let exportURL: URL
 
     enum CodingKeys: String, CodingKey {
-        case fileName, fileSize, hasUnity, metadataPath, nativeBinaryPath, metadataVersion, sections
+        case fileName, fileSize, engineName, hasUnity, ue4MarkerCount, metadataPath, nativeBinaryPath, metadataVersion, sections
         case typeCount, methodCount, fieldCount, resolvedFieldOffsetCount, resolvedMethodRvaCount, analyzedAt
     }
 }
@@ -104,11 +106,14 @@ final class DumperModel: ObservableObject {
 
             var foundMetadata: URL?
             var foundNativeBinary: URL?
+            var foundUE4Binary: URL?
+            var archivePaths: [String] = []
             var hasUnity = false
             var processed = 0
             let rootPath = root.standardizedFileURL.path + "/"
 
             for entry in archive {
+                archivePaths.append(entry.path)
                 let lower = entry.path.lowercased()
                 if lower.contains("unityframework") || lower.contains("unityplayer") || lower.contains("data/globalgamemanagers") {
                     hasUnity = true
@@ -119,7 +124,17 @@ final class DumperModel: ObservableObject {
                     lower.hasSuffix("/libil2cpp") ||
                     lower.hasSuffix("/libil2cpp.dylib") ||
                     lower.hasSuffix("/il2cpp")
-                guard isMetadata || isNativeBinary else { continue }
+                let pathParts = entry.path.split(separator: "/")
+                let appIndex = pathParts.firstIndex(where: { $0.lowercased().hasSuffix(".app") })
+                let isMainAppExecutable = appIndex.map { index in
+                    pathParts.count == index + 2 &&
+                    URL(fileURLWithPath: entry.path).pathExtension.isEmpty &&
+                    !pathParts.last!.lowercased().hasSuffix(".plist")
+                } ?? false
+                let namedUE4Binary = lower.contains("shadowtrackerextra") ||
+                    lower.contains("ue4game") || lower.contains("libue4")
+                let isUE4Candidate = isMainAppExecutable || namedUE4Binary
+                guard isMetadata || isNativeBinary || isUE4Candidate else { continue }
                 guard entry.type == .file else { continue }
 
                 let destination = root.appendingPathComponent(entry.path).standardizedFileURL
@@ -132,7 +147,8 @@ final class DumperModel: ObservableObject {
                 processed += 1
                 if isMetadata { foundMetadata = destination }
                 if isNativeBinary { foundNativeBinary = destination }
-                status = isMetadata ? "Metadata извлечён" : "Найден нативный Unity-бинарник"
+                if isUE4Candidate && !isNativeBinary { foundUE4Binary = destination }
+                status = isMetadata ? "Metadata извлечён" : (isNativeBinary ? "Найден Unity-бинарник" : "Найден исполняемый файл приложения")
             }
 
             addLog("Извлечено целевых файлов: \(processed)")
@@ -155,6 +171,8 @@ final class DumperModel: ObservableObject {
             }
 
             var version: UInt32?
+            var engineName = "Не определён"
+            var ue4MarkerCount = 0
             var sections: [MetadataSection] = []
             var dumpURL: URL?
             var typeCount = 0
@@ -188,8 +206,33 @@ final class DumperModel: ObservableObject {
                     addLog("Генератор dump.cs не смог разобрать эту версию metadata: \(error.localizedDescription)")
                     (version, sections) = try parseMetadataHeader(metadata)
                 }
+            } else if let ue4Binary = foundUE4Binary {
+                addLog("Unity metadata не найдено. Проверяю исполняемый файл на признаки Unreal Engine.")
+                do {
+                    let ue4Folder = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("ForgeIPA-UE4-\\(UUID().uuidString)", isDirectory: true)
+                    let result = try UE4StaticAnalyzer.analyze(
+                        binaryURL: ue4Binary,
+                        ipaEntryPaths: archivePaths,
+                        outputDirectory: ue4Folder
+                    )
+                    engineName = result.detected ? "Unreal Engine 4 (признаки найдены)" : "UE4 не подтверждён"
+                    ue4MarkerCount = result.markers.reduce(0) { $0 + $1.fileOffsets.count }
+                    dumpURL = result.reportURL
+                    addLog("UE4 Mach-O разобран: \\(result.architecture), секций: \\(result.sections.count).")
+                    addLog("Групп маркеров: \\(result.markers.count), совпадений строк: \\(ue4MarkerCount).")
+                    addLog("Ресурсы Unreal: " + (result.packageInventory.isEmpty ? "не найдены" : result.packageInventory.map { "\\($0.key): \\($0.value)" }.sorted().joined(separator: ", ")))
+                    addLog("Создан UE4 static analysis report. Это не runtime UObject dump.")
+                } catch {
+                    engineName = "Возможный UE4 — анализ не завершён"
+                    addLog("UE4-анализатор: \\(error.localizedDescription)")
+                }
             } else {
-                addLog("global-metadata.dat не найден")
+                addLog("global-metadata.dat и подходящий UE4 executable не найдены")
+            }
+
+            if engineName == "Не определён" {
+                engineName = hasUnity ? "Unity / IL2CPP" : "Не определён"
             }
 
             let export = FileManager.default.temporaryDirectory
@@ -197,7 +240,9 @@ final class DumperModel: ObservableObject {
             let draft = DumpReport(
                 fileName: source.lastPathComponent,
                 fileSize: size,
+                engineName: engineName,
                 hasUnity: hasUnity,
+                ue4MarkerCount: ue4MarkerCount,
                 metadataPath: foundMetadata?.lastPathComponent,
                 nativeBinaryPath: foundNativeBinary?.lastPathComponent,
                 metadataVersion: version,
@@ -215,8 +260,8 @@ final class DumperModel: ObservableObject {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(draft).write(to: export, options: .atomic)
             report = draft
-            status = dumpURL == nil ? "Анализ metadata завершён" : "dump.cs создан"
-            addLog(dumpURL == nil ? "Создан JSON-отчёт. Полный dump.cs для этой версии пока недоступен." : "Файлы dump.cs и JSON готовы к экспорту.")
+            status = dumpURL == nil ? "Анализ завершён" : (engineName.contains("Unreal") || engineName.contains("UE4") ? "UE4-отчёт создан" : "dump.cs создан")
+            addLog(dumpURL == nil ? "Создан JSON-отчёт. Файл полного дампа не сформирован." : "Файлы анализа и JSON готовы к экспорту.")
         } catch {
             addLog("Ошибка анализа: \(error.localizedDescription)")
             status = "Анализ прерван"
