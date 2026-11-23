@@ -25,8 +25,10 @@ enum IL2CPPMetadataDumper {
         let fieldStart: Int32
         let methodStart: Int32
         let propertyStart: Int32
+        let eventStart: Int32
         let methodCount: Int
         let propertyCount: Int
+        let eventCount: Int
         let fieldCount: Int
         let isValueType: Bool
         let isEnum: Bool
@@ -49,6 +51,12 @@ enum IL2CPPMetadataDumper {
         let name: String
         let getter: Int32
         let setter: Int32
+    }
+
+    private struct EventDefinition {
+        let name: String
+        let add: Int32
+        let remove: Int32
     }
 
     static func generate(from metadataURL: URL, outputDirectory: URL) throws -> IL2CPPMetadataDumpResult {
@@ -109,6 +117,7 @@ enum IL2CPPMetadataDumper {
         let fieldSection = try section(11)
         let parameterSection = try section(10)
         let propertySection = try section(4)
+        let eventSection = try section(3)
 
         let typeStride = 88       // Il2CppTypeDefinition, metadata 27–31
         let methodStride: Int
@@ -126,12 +135,14 @@ enum IL2CPPMetadataDumper {
         let fieldStride = 12      // Il2CppFieldDefinition, metadata 27–31
         let parameterStride = 12 // Il2CppParameterDefinition, metadata 27–31
         let propertyStride = 20
+        let eventStride = 24
 
         guard typeSection.size % typeStride == 0,
               methodSection.size % methodStride == 0,
               fieldSection.size % fieldStride == 0,
               parameterSection.size % parameterStride == 0,
-              propertySection.size % propertyStride == 0 else {
+              propertySection.size % propertyStride == 0,
+              eventSection.size % eventStride == 0 else {
             throw DumpError.invalidMetadata("Размеры таблиц не соответствуют поддерживаемым структурам metadata.")
         }
 
@@ -140,6 +151,7 @@ enum IL2CPPMetadataDumper {
         let fieldCount = fieldSection.size / fieldStride
         let parameterCount = parameterSection.size / parameterStride
         let propertyCount = propertySection.size / propertyStride
+        let eventCount = eventSection.size / eventStride
         guard typeCount > 0, typeCount <= 2_000_000,
               methodCount <= 8_000_000, fieldCount <= 8_000_000 else {
             throw DumpError.invalidMetadata("Некорректное количество записей в metadata.")
@@ -155,8 +167,10 @@ enum IL2CPPMetadataDumper {
             let fieldStart = try i32(base + 32)
             let methodStart = try i32(base + 36)
             let propertyStart = try i32(base + 44)
+            let eventStart = try i32(base + 40)
             let methodCountForType = Int(try u16(base + 64))
             let propertyCountForType = Int(try u16(base + 66))
+            let eventCountForType = Int(try u16(base + 70))
             let fieldCountForType = Int(try u16(base + 68))
             let bitfield = try u32(base + 80)
             types.append(TypeDefinition(
@@ -166,8 +180,10 @@ enum IL2CPPMetadataDumper {
                 fieldStart: fieldStart,
                 methodStart: methodStart,
                 propertyStart: propertyStart,
+                eventStart: eventStart,
                 methodCount: methodCountForType,
                 propertyCount: propertyCountForType,
+                eventCount: eventCountForType,
                 fieldCount: fieldCountForType,
                 isValueType: (bitfield & 1) != 0,
                 isEnum: (bitfield & 2) != 0
@@ -205,6 +221,17 @@ enum IL2CPPMetadataDumper {
                 name: stringAt(try i32(base)),
                 getter: try i32(base + 4),
                 setter: try i32(base + 8)
+            ))
+        }
+
+        var events: [EventDefinition] = []
+        events.reserveCapacity(eventCount)
+        for index in 0..<eventCount {
+            let base = eventSection.offset + index * eventStride
+            events.append(EventDefinition(
+                name: stringAt(try i32(base)),
+                add: try i32(base + 8),
+                remove: try i32(base + 12)
             ))
         }
 
@@ -286,6 +313,20 @@ enum IL2CPPMetadataDumper {
                 }
             }
 
+            if type.eventStart >= 0, type.eventCount > 0 {
+                let start = Int(type.eventStart)
+                let end = min(start + type.eventCount, events.count)
+                if start < end {
+                    for eventIndex in start..<end {
+                        let event = events[eventIndex]
+                        let eventName = safeIdentifier(event.name, fallback: "Event_\(eventIndex)")
+                        if event.add >= 0 || event.remove >= 0 {
+                            output += "\(indent)    // Event type index is unresolved until native type registration is parsed.\n"
+                            output += "\(indent)    public event Action \(eventName);\n"
+                        }
+                    }
+                }
+            }
             if type.methodStart >= 0, type.methodCount > 0 {
                 let start = Int(type.methodStart)
                 let end = min(start + type.methodCount, methods.count)
