@@ -100,11 +100,7 @@ final class DumperModel: ObservableObject {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: root) }
 
-            guard let archive = Archive(url: source, accessMode: .read) else {
-                addLog("Не удалось открыть ZIP/IPA архив.")
-                status = "Повреждённый архив"
-                return
-            }
+            let archive = try Archive(url: source, accessMode: .read)
 
             var foundMetadata: URL?
             var foundNativeBinary: URL?
@@ -128,7 +124,7 @@ final class DumperModel: ObservableObject {
 
                 let destination = root.appendingPathComponent(entry.path).standardizedFileURL
                 guard destination.path.hasPrefix(rootPath) else {
-                    addLog("Пропущен недопустимый путь внутри архива: \\(entry.path)")
+                    addLog("Пропущен недопустимый путь внутри архива: \(entry.path)")
                     continue
                 }
                 try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -139,20 +135,20 @@ final class DumperModel: ObservableObject {
                 status = isMetadata ? "Metadata извлечён" : "Найден нативный Unity-бинарник"
             }
 
-            addLog("Извлечено целевых файлов: \\(processed)")
+            addLog("Извлечено целевых файлов: \(processed)")
             if let native = foundNativeBinary {
-                addLog("Найден нативный бинарник: \\(native.lastPathComponent)")
+                addLog("Найден нативный бинарник: \(native.lastPathComponent)")
                 do {
                     let image = try MachOInspector.inspect(native)
-                    addLog("Mach-O разобран: \\(image.architecture), сегментов: \\(image.segments.count), секций: \\(image.sections.count).")
+                    addLog("Mach-O разобран: \(image.architecture), сегментов: \(image.segments.count), секций: \(image.sections.count).")
                     let dataSections = image.sections.filter {
                         $0.segment == "__DATA" || $0.segment == "__DATA_CONST" || $0.segment == "__TEXT"
                     }.prefix(10)
                     for section in dataSections {
-                        addLog("Секция \\(section.segment),\\(section.name): VA 0x\\(String(section.virtualAddress, radix: 16)), size 0x\\(String(section.size, radix: 16)).")
+                        addLog("Секция \(section.segment),\(section.name): VA 0x\(String(section.virtualAddress, radix: 16)), size 0x\(String(section.size, radix: 16)).")
                     }
                 } catch {
-                    addLog("Не удалось разобрать Mach-O: \\(error.localizedDescription)")
+                    addLog("Не удалось разобрать Mach-O: \(error.localizedDescription)")
                 }
             } else {
                 addLog("Нативный Unity-бинарник не найден по стандартным именам.")
@@ -182,7 +178,7 @@ final class DumperModel: ObservableObject {
                     resolvedFieldOffsetCount = generated.resolvedFieldOffsetCount
                     resolvedMethodRvaCount = generated.resolvedMethodRvaCount
                     if resolvedFieldOffsetCount > 0 {
-                        addLog("Разрешены реальные смещения полей: \\(resolvedFieldOffsetCount).")
+                        addLog("Разрешены реальные смещения полей: \(resolvedFieldOffsetCount).")
                     }
                     if resolvedMethodRvaCount > 0 {
                         addLog("Восстановлены адреса методов RVA: \(resolvedMethodRvaCount).")
