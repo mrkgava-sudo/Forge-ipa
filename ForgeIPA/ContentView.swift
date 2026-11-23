@@ -209,7 +209,7 @@ struct ContentView: View {
                     Text("Импортировать IPA")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(ForgeStyle.text)
-                    Text("Выбери Unity-приложение в приложении «Файлы»")
+                    Text("Выбери IPA-файл в приложении «Файлы»")
                         .font(.system(size: 10.5))
                         .foregroundStyle(ForgeStyle.muted)
                         .multilineTextAlignment(.leading)
@@ -308,11 +308,15 @@ struct ContentView: View {
             summaryLine("Движок", value: report.engineName)
             summaryLine("Metadata", value: report.metadataPath == nil ? "Не требуется / не найдено" : "Найден")
             summaryLine("Native binary", value: report.nativeBinaryPath ?? "Не найден")
-            summaryLine("Типов", value: String(report.typeCount))
-            summaryLine("Методов", value: String(report.methodCount))
-            summaryLine("Полей", value: String(report.fieldCount))
-            summaryLine("Смещения полей", value: "\(report.resolvedFieldOffsetCount) / \(report.fieldCount)")
-            summaryLine("RVA методов", value: String(report.resolvedMethodRvaCount))
+            if report.engineName.contains("Unreal") || report.engineName.contains("UE4") {
+                summaryLine("UE4 marker strings", value: String(report.ue4MarkerCount))
+            } else {
+                summaryLine("Типов", value: String(report.typeCount))
+                summaryLine("Методов", value: String(report.methodCount))
+                summaryLine("Полей", value: String(report.fieldCount))
+                summaryLine("Смещения полей", value: "\(report.resolvedFieldOffsetCount) / \(report.fieldCount)")
+                summaryLine("RVA методов", value: String(report.resolvedMethodRvaCount))
+            }
             Button { selectedTab = 1 } label: {
                 HStack {
                     Text("Открыть результаты")
@@ -338,18 +342,19 @@ struct ContentView: View {
                         sectionTitle("Сводка IPA")
                         summaryLine("Файл", value: report.fileName)
                         summaryLine("Размер", value: ByteCountFormatter.string(fromByteCount: report.fileSize, countStyle: .file))
-                        summaryLine("Unity", value: report.hasUnity ? "Обнаружен" : "Не подтверждён")
+                        summaryLine("Движок", value: report.engineName)
                         summaryLine("Metadata", value: report.metadataPath ?? "Не найдено")
                         summaryLine("Native binary", value: report.nativeBinaryPath ?? "Не найден")
                         summaryLine("Версия metadata", value: report.metadataVersion.map(String.init) ?? "—")
-                        summaryLine("Типов", value: String(report.typeCount))
-                        summaryLine("Методов", value: String(report.methodCount))
-                        summaryLine("Полей", value: String(report.fieldCount))
-                        summaryLine("Смещения полей", value: "\(report.resolvedFieldOffsetCount) / \(report.fieldCount)")
-                        summaryLine("RVA методов", value: String(report.resolvedMethodRvaCount))
-                    if report.ue4MarkerCount > 0 {
-                        summaryLine("UE4 marker strings", value: String(report.ue4MarkerCount))
-                    }
+                        if report.engineName.contains("Unreal") || report.engineName.contains("UE4") {
+                            summaryLine("UE4 marker strings", value: String(report.ue4MarkerCount))
+                        } else {
+                            summaryLine("Типов", value: String(report.typeCount))
+                            summaryLine("Методов", value: String(report.methodCount))
+                            summaryLine("Полей", value: String(report.fieldCount))
+                            summaryLine("Смещения полей", value: "\(report.resolvedFieldOffsetCount) / \(report.fieldCount)")
+                            summaryLine("RVA методов", value: String(report.resolvedMethodRvaCount))
+                        }
                     }
                     .padding(15)
                     .forgeGlass(cornerRadius: 13)
