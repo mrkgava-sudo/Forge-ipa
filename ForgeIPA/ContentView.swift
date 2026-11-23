@@ -18,11 +18,15 @@ private enum ForgeStyle {
 private extension View {
     @ViewBuilder
     func forgeGlass(cornerRadius: CGFloat = 18) -> some View {
+        #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
             self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         } else {
             self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
+        #else
+        self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        #endif
     }
 }
 
@@ -51,6 +55,17 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .sheet(isPresented: $showSettings) { settingsSheet }
+        .sheet(isPresented: $showingImporter) {
+            ForgeDocumentPicker(isPresented: $showingImporter) { result in
+                switch result {
+                case .success(let url):
+                    model.inspect(url)
+                case .failure(let error):
+                    model.addLog("Импорт: \\(error.localizedDescription)")
+                }
+            }
+            .ignoresSafeArea()
+        }
         .preferredColorScheme(nil)
     }
 
@@ -563,14 +578,7 @@ private struct ForgeDocumentPicker: UIViewControllerRepresentable {
         return picker
     }
 
-    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {
-        if isPresented && !context.coordinator.isPresented {
-            context.coordinator.isPresented = true
-            DispatchQueue.main.async {
-                controller.presentedViewController?.dismiss(animated: false)
-            }
-        }
-    }
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
 
     final class Coordinator: NSObject, UIDocumentPickerDelegate {
         let parent: ForgeDocumentPicker
