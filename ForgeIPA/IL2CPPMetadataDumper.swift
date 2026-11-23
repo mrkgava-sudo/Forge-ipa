@@ -8,6 +8,7 @@ struct IL2CPPMetadataDumpResult {
     let methodCount: Int
     let fieldCount: Int
     let resolvedFieldOffsetCount: Int
+    let resolvedMethodRvaCount: Int
 }
 
 /// Metadata-side IL2CPP dumper. It reconstructs declarations that are actually
@@ -380,7 +381,10 @@ enum IL2CPPMetadataDumper {
                         let staticText = isStatic && !isConstructor ? " static" : ""
                         let resolvedReturnType = nativeResolution?.typeNamesByTypeIndex[Int(method.returnTypeIndex)] ?? "object"
                         let returnType = isConstructor ? "" : resolvedReturnType + " "
-                        output += "\(indent)    // Return Il2CppType index: \(method.returnTypeIndex).\n"
+                        output += "\\(indent)    // Return Il2CppType index: \\(method.returnTypeIndex).\\n"
+                        if let rva = nativeResolution?.methodRVAsByIndex[methodIndex] {
+                            output += "\\(indent)    // RVA: 0x\\(String(rva, radix: 16)).\\n"
+                        }
                         output += "\(indent)    \(access)\(staticText) \(returnType)\(methodName)(\(parameters.joined(separator: ", ")));\n"
                     }
                 }
@@ -404,7 +408,7 @@ enum IL2CPPMetadataDumper {
             guard section.size > 0 else { return nil }
             return MetadataSection(name: index < names.count ? names[index] : "Section_\(index)", offset: UInt32(clamping: section.offset), count: UInt32(clamping: section.size))
         }
-        return IL2CPPMetadataDumpResult(version: version, sections: reportSections, dumpURL: dumpURL, typeCount: typeCount, methodCount: methodCount, fieldCount: fieldCount, resolvedFieldOffsetCount: nativeResolution?.offsetsByFieldIndex.count ?? 0)
+        return IL2CPPMetadataDumpResult(version: version, sections: reportSections, dumpURL: dumpURL, typeCount: typeCount, methodCount: methodCount, fieldCount: fieldCount, resolvedFieldOffsetCount: nativeResolution?.offsetsByFieldIndex.count ?? 0, resolvedMethodRvaCount: nativeResolution?.methodRVAsByIndex.count ?? 0)
     }
 
     enum DumpError: LocalizedError {
