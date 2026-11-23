@@ -123,18 +123,7 @@ enum IL2CPPMetadataDumper {
         let eventSection = try section(3)
 
         let typeStride = 88       // Il2CppTypeDefinition, metadata 27–31
-        let methodStride: Int
-        if version == 31 {
-            let methodsSize = methodSection.size
-            let divides40 = methodsSize > 0 && methodsSize % 40 == 0
-            let divides36 = methodsSize > 0 && methodsSize % 36 == 0
-            guard divides40 != divides36 else {
-                throw DumpError.invalidMetadata("Не удалось однозначно определить размер записи метода metadata 31.")
-            }
-            methodStride = divides40 ? 40 : 36
-        } else {
-            methodStride = 32
-        }
+        let methodStride = version == 31 ? 36 : 32
         let fieldStride = 12      // Il2CppFieldDefinition, metadata 27–31
         let parameterStride = 12 // Il2CppParameterDefinition, metadata 27–31
         let propertyStride = 20
@@ -198,8 +187,8 @@ enum IL2CPPMetadataDumper {
         for index in 0..<methodCount {
             let base = methodSection.offset + index * methodStride
             let parameterStartOffset = version == 31 ? 16 : 12
-            let flagsOffset = version == 31 ? (methodStride == 40 ? 32 : 28) : 24
-            let parameterCountOffset = version == 31 ? (methodStride == 40 ? 38 : 34) : 30
+            let flagsOffset = version == 31 ? 28 : 24
+            let parameterCountOffset = version == 31 ? 34 : 30
             methods.append(MethodDefinition(
                 name: stringAt(try i32(base)),
                 parameterStart: try i32(base + parameterStartOffset),
