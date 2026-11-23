@@ -64,7 +64,7 @@ enum IL2CPPMetadataDumper {
         // GlobalMetadataHeader is a sequence of (offset, byte-size) pairs.
         // These indices are stable for metadata versions 27–29.
         var sections: [Section] = []
-        for index in 0..<32 {
+        for index in 0..<31 {
             let pairOffset = 8 + index * 8
             guard pairOffset + 8 <= data.count else { break }
             let rawOffset = try u32(pairOffset)
@@ -259,7 +259,8 @@ enum IL2CPPMetadataDumper {
 
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         let dumpURL = outputDirectory.appendingPathComponent("dump.cs")
-        try output.data(using: .utf8)?.write(to: dumpURL, options: .atomic)
+        guard let outputData = output.data(using: .utf8) else { throw DumpError.invalidMetadata("Не удалось сформировать текст dump.cs.") }
+        try outputData.write(to: dumpURL, options: .atomic)
 
         let names = ["StringLiteral", "StringLiteralData", "String", "Events", "Properties", "Methods", "ParameterDefaultValues", "FieldDefaultValues", "DefaultValues", "FieldMarshaledSizes", "Parameters", "Fields", "GenericParameters", "GenericParameterConstraints", "GenericContainers", "NestedTypes", "Interfaces", "VTables", "InterfaceOffsets", "TypeDefinitions", "Images", "Assemblies", "FieldRefs", "ReferencedAssemblies", "AttributeInfo", "AttributeTypes", "UnresolvedVirtualCallParameterTypes", "UnresolvedVirtualCallParameterRanges", "WindowsRuntimeTypeNames", "WindowsRuntimeStrings", "ExportedTypeDefinitions", "AttributeData", "AttributeDataRanges"]
         let reportSections = sections.enumerated().compactMap { index, section -> MetadataSection? in
