@@ -13,6 +13,7 @@ struct DumpReport: Encodable {
     let fileSize: Int64
     let hasUnity: Bool
     let metadataPath: String?
+    let nativeBinaryPath: String?
     let metadataVersion: UInt32?
     let sections: [MetadataSection]
     let typeCount: Int
@@ -23,7 +24,7 @@ struct DumpReport: Encodable {
     let exportURL: URL
 
     enum CodingKeys: String, CodingKey {
-        case fileName, fileSize, hasUnity, metadataPath, metadataVersion, sections
+        case fileName, fileSize, hasUnity, metadataPath, nativeBinaryPath, metadataVersion, sections
         case typeCount, methodCount, fieldCount, analyzedAt
     }
 }
@@ -103,32 +104,45 @@ final class DumperModel: ObservableObject {
             }
 
             var foundMetadata: URL?
+            var foundNativeBinary: URL?
             var hasUnity = false
             var processed = 0
             let rootPath = root.standardizedFileURL.path + "/"
 
             for entry in archive {
+                let lower = entry.path.lowercased()
+                if lower.contains("unityframework") || lower.contains("unityplayer") || lower.contains("data/globalgamemanagers") {
+                    hasUnity = true
+                }
+                let isMetadata = lower.hasSuffix("global-metadata.dat")
+                let isNativeBinary = lower.hasSuffix("/unityframework") ||
+                    lower.hasSuffix("/unityplayer") ||
+                    lower.hasSuffix("/libil2cpp") ||
+                    lower.hasSuffix("/libil2cpp.dylib") ||
+                    lower.hasSuffix("/il2cpp")
+                guard isMetadata || isNativeBinary else { continue }
+                guard entry.type == .file else { continue }
+
                 let destination = root.appendingPathComponent(entry.path).standardizedFileURL
                 guard destination.path.hasPrefix(rootPath) else {
-                    addLog("Пропущен недопустимый путь внутри архива: \(entry.path)")
-                    continue
-                }
-                if entry.type == .directory {
-                    try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+                    addLog("Пропущен недопустимый путь внутри архива: \\(entry.path)")
                     continue
                 }
                 try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
                 _ = try archive.extract(entry, to: destination, skipCRC32: false)
                 processed += 1
-                let lower = entry.path.lowercased()
-                if lower.contains("unityframework") || lower.contains("unityplayer") || lower.contains("data/globalgamemanagers") {
-                    hasUnity = true
-                }
-                if lower.hasSuffix("global-metadata.dat") { foundMetadata = destination }
-                if processed % 100 == 0 { status = "Распаковано файлов: \(processed)" }
+                if isMetadata { foundMetadata = destination }
+                if isNativeBinary { foundNativeBinary = destination }
+                status = isMetadata ? "Metadata извлечён" : "Найден нативный Unity-бинарник"
             }
 
-            addLog("Распаковка завершена. Файлов: \(processed)")
+            addLog("Извлечено целевых файлов: \\(processed)")
+            if let native = foundNativeBinary {
+                addLog("Найден нативный бинарник: \\(native.lastPathComponent)")
+            } else {
+                addLog("Нативный Unity-бинарник не найден по стандартным именам.")
+            }
+
             var version: UInt32?
             var sections: [MetadataSection] = []
             var dumpURL: URL?
@@ -164,6 +178,7 @@ final class DumperModel: ObservableObject {
                 fileSize: size,
                 hasUnity: hasUnity,
                 metadataPath: foundMetadata?.lastPathComponent,
+                nativeBinaryPath: foundNativeBinary?.lastPathComponent,
                 metadataVersion: version,
                 sections: sections,
                 typeCount: typeCount,
