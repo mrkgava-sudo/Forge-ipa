@@ -139,6 +139,18 @@ final class DumperModel: ObservableObject {
             addLog("Извлечено целевых файлов: \\(processed)")
             if let native = foundNativeBinary {
                 addLog("Найден нативный бинарник: \\(native.lastPathComponent)")
+                do {
+                    let image = try MachOInspector.inspect(native)
+                    addLog("Mach-O разобран: \\(image.architecture), сегментов: \\(image.segments.count), секций: \\(image.sections.count).")
+                    let dataSections = image.sections.filter {
+                        $0.segment == "__DATA" || $0.segment == "__DATA_CONST" || $0.segment == "__TEXT"
+                    }.prefix(10)
+                    for section in dataSections {
+                        addLog("Секция \\(section.segment),\\(section.name): VA 0x\\(String(section.virtualAddress, radix: 16)), size 0x\\(String(section.size, radix: 16)).")
+                    }
+                } catch {
+                    addLog("Не удалось разобрать Mach-O: \\(error.localizedDescription)")
+                }
             } else {
                 addLog("Нативный Unity-бинарник не найден по стандартным именам.")
             }
