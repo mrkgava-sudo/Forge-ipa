@@ -57,7 +57,7 @@ enum IL2CPPMetadataDumper {
 
         guard try u32(0) == 0xFAB11BAF else { throw DumpError.invalidMetadata("Сигнатура global-metadata.dat не совпадает.") }
         let version = try u32(4)
-        guard (27...29).contains(version) else {
+        guard version == 27 || version == 28 || version == 29 || version == 31 else {
             throw DumpError.unsupportedVersion(version)
         }
 
@@ -99,8 +99,19 @@ enum IL2CPPMetadataDumper {
         let fieldSection = try section(11)
         let parameterSection = try section(10)
 
-        let typeStride = 88       // Il2CppTypeDefinition, metadata 27–29
-        let methodStride = 32     // Il2CppMethodDefinition, metadata 27–29
+        let typeStride = 88       // Il2CppTypeDefinition, metadata 27–31
+        let methodStride: Int
+        if version == 31 {
+            let methodsSize = methodSection.size
+            let divides40 = methodsSize > 0 && methodsSize % 40 == 0
+            let divides36 = methodsSize > 0 && methodsSize % 36 == 0
+            guard divides40 != divides36 else {
+                throw DumpError.invalidMetadata("Не удалось однозначно определить размер записи метода metadata 31.")
+            }
+            methodStride = divides40 ? 40 : 36
+        } else {
+            methodStride = 32
+        }
         let fieldStride = 12      // Il2CppFieldDefinition, metadata 27–29
         let parameterStride = 12 // Il2CppParameterDefinition, metadata 27–29
 
@@ -149,11 +160,14 @@ enum IL2CPPMetadataDumper {
         methods.reserveCapacity(methodCount)
         for index in 0..<methodCount {
             let base = methodSection.offset + index * methodStride
+            let parameterStartOffset = version == 31 ? 16 : 12
+            let flagsOffset = version == 31 ? (methodStride == 40 ? 32 : 28) : 24
+            let parameterCountOffset = version == 31 ? (methodStride == 40 ? 38 : 34) : 30
             methods.append(MethodDefinition(
                 name: stringAt(try i32(base)),
-                parameterStart: try i32(base + 12),
-                parameterCount: Int(try u16(base + 30)),
-                flags: try u16(base + 24)
+                parameterStart: try i32(base + parameterStartOffset),
+                parameterCount: Int(try u16(base + parameterCountOffset)),
+                flags: try u16(base + flagsOffset)
             ))
         }
 
@@ -219,8 +233,12 @@ enum IL2CPPMetadataDumper {
                 if start < end {
                     for fieldIndex in start..<end {
                         let fieldName = safeIdentifier(fields[fieldIndex].name, fallback: "field_\(fieldIndex)")
-                        output += "\(indent)    // Type index unresolved; field offset requires native layout data.\n"
-                        output += "\(indent)    public object \(fieldName);\n"
+                        if type.isEnum {
+                            output += "\(indent)    // Enum member: \(fieldName) (raw value is stored in metadata defaults).\n"
+                        } else {
+                            output += "\(indent)    // Type index unresolved; field offset requires native layout data.\n"
+                            output += "\(indent)    public object \(fieldName);\n"
+                        }
                     }
                 }
             }
@@ -276,7 +294,7 @@ enum IL2CPPMetadataDumper {
         var errorDescription: String? {
             switch self {
             case .invalidMetadata(let message): return message
-            case .unsupportedVersion(let version): return "Версия metadata \(version) пока не поддерживается генератором dump.cs. Сейчас поддерживаются 27–29."
+            case .unsupportedVersion(let version): return "Версия metadata \(version) пока не поддерживается генератором dump.cs. Сейчас поддерживаются 27, 28, 29 и 31."
             }
         }
     }
