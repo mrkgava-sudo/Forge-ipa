@@ -84,7 +84,7 @@ struct ContentView: View {
                 Text("Forge IPA")
                     .font(.system(size: 15.3, weight: .semibold))
                     .foregroundStyle(ForgeStyle.text)
-                Text("UNITY ANALYSIS")
+                Text("IPA ANALYSIS")
                     .font(.system(size: 8, weight: .heavy, design: .monospaced))
                     .tracking(1.1)
                     .foregroundStyle(ForgeStyle.muted)
@@ -155,7 +155,7 @@ struct ContentView: View {
                     Text("Рабочее пространство")
                         .font(.system(size: 26, weight: .bold))
                         .foregroundStyle(ForgeStyle.text)
-                    Text("Исследуй структуру Unity-приложения.")
+                    Text("Исследуй внутреннюю структуру приложения.")
                         .font(.system(size: 12.5))
                         .foregroundStyle(ForgeStyle.muted)
                 }
@@ -163,7 +163,7 @@ struct ContentView: View {
 
                 HStack(spacing: 8) {
                     statusChip("Режим", value: "Локально", icon: "iphone")
-                    statusChip("Движок", value: "Unity", icon: "cube.transparent")
+                    statusChip("Движок", value: model.report?.engineName ?? "Авто", icon: "cube.transparent")
                     statusChip("Данные", value: "Offline", icon: "lock.fill")
                 }
 
@@ -305,8 +305,8 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             Divider()
-            summaryLine("Unity", value: report.hasUnity ? "Обнаружен" : "Не подтверждён")
-            summaryLine("Metadata", value: report.metadataPath == nil ? "Не найден" : "Найден")
+            summaryLine("Движок", value: report.engineName)
+            summaryLine("Metadata", value: report.metadataPath == nil ? "Не требуется / не найдено" : "Найден")
             summaryLine("Native binary", value: report.nativeBinaryPath ?? "Не найден")
             summaryLine("Типов", value: String(report.typeCount))
             summaryLine("Методов", value: String(report.methodCount))
@@ -339,7 +339,7 @@ struct ContentView: View {
                         summaryLine("Файл", value: report.fileName)
                         summaryLine("Размер", value: ByteCountFormatter.string(fromByteCount: report.fileSize, countStyle: .file))
                         summaryLine("Unity", value: report.hasUnity ? "Обнаружен" : "Не подтверждён")
-                        summaryLine("Metadata", value: report.metadataPath ?? "Не найден")
+                        summaryLine("Metadata", value: report.metadataPath ?? "Не найдено")
                         summaryLine("Native binary", value: report.nativeBinaryPath ?? "Не найден")
                         summaryLine("Версия metadata", value: report.metadataVersion.map(String.init) ?? "—")
                         summaryLine("Типов", value: String(report.typeCount))
@@ -347,6 +347,9 @@ struct ContentView: View {
                         summaryLine("Полей", value: String(report.fieldCount))
                         summaryLine("Смещения полей", value: "\(report.resolvedFieldOffsetCount) / \(report.fieldCount)")
                         summaryLine("RVA методов", value: String(report.resolvedMethodRvaCount))
+                    if report.ue4MarkerCount > 0 {
+                        summaryLine("UE4 marker strings", value: String(report.ue4MarkerCount))
+                    }
                     }
                     .padding(15)
                     .forgeGlass(cornerRadius: 13)
@@ -380,7 +383,7 @@ struct ContentView: View {
 
                     if let dumpURL = report.dumpURL {
                         ShareLink(item: dumpURL) {
-                            Label("Экспортировать dump.cs", systemImage: "doc.text")
+                            Label(report.engineName.contains("Unreal") || report.engineName.contains("UE4") ? "Экспортировать UE4-отчёт" : "Экспортировать dump.cs", systemImage: "doc.text")
                                 .font(.system(size: 11, weight: .semibold))
                                 .frame(maxWidth: .infinity)
                                 .padding(13)
@@ -446,7 +449,7 @@ struct ContentView: View {
                     Divider().padding(.leading, 14)
                     settingRow("Обработка файлов", value: "На устройстве")
                     Divider().padding(.leading, 14)
-                    settingRow("Поддержка", value: "Unity / IL2CPP")
+                    settingRow("Поддержка", value: "Unity / UE4")
                     Divider().padding(.leading, 14)
                     settingRow("Минимальная iOS", value: "iOS 16")
                 }
@@ -471,7 +474,7 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "info.circle.fill")
                 .foregroundStyle(ForgeStyle.orange)
-            Text("dump.cs строится из таблиц metadata. Типы полей и параметров, реальные смещения и RVA требуют отдельного разбора native IL2CPP registration.")
+            Text("Unity: реконструкция деклараций из IL2CPP metadata. UE4: статический анализ Mach-O и признаков reflection/ресурсов. Файловые смещения строк не являются runtime offsets; адреса объектов и функций не угадываются.")
                 .font(.system(size: 9.5))
                 .foregroundStyle(ForgeStyle.muted)
         }
@@ -492,7 +495,7 @@ struct ContentView: View {
             }
             settingRow("Обработка", value: "Локально")
             settingRow("Платформа", value: "iOS")
-            settingRow("Фокус", value: "Unity IL2CPP")
+            settingRow("Движки", value: "Unity / Unreal Engine 4")
             Spacer()
         }
         .padding(22)
