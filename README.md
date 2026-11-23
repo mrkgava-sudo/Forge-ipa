@@ -3,15 +3,14 @@
 Local iOS IPA / Unity IL2CPP package inspector.
 
 ## Current scope
-- Import an IPA from Files.
-- Enforce a 4 GiB input-file limit.
-- Extract archive entries locally using ZIPFoundation.
-- Detect common Unity markers and `global-metadata.dat`.
-- Validate the IL2CPP metadata sanity value and report metadata version plus known header section offsets/counts.
-- Export a JSON report.
-
-## Accuracy and safety
-Reported offsets are offsets inside the metadata file, not runtime memory addresses or guaranteed method offsets. Runtime addresses depend on the exact binary, architecture, load address and build. This project does not bypass DRM, anti-cheat, app sandboxing or signing protections.
+- Import a Unity IPA from Files using the native iOS document picker; copy the selected IPA into the app container.
+- Analyze locally on-device, with a 4 GiB input-file limit.
+- Extract only global-metadata.dat and the native Unity executable instead of unpacking every game asset.
+- Parse IL2CPP metadata versions 27, 28, 29 and 31.
+- Reconstruct namespaces, classes, structs, enums, inheritance, fields, methods, properties and events.
+- Inspect the matching Mach-O image and attempt to resolve native IL2CPP registration data.
+- When registration data is found, resolve field offsets, available field/method types and method RVAs.
+- Export the reconstructed dump.cs and a JSON analysis report.
 
 ## Build
 GitHub Actions builds an unsigned iOS app and packages it as an unsigned IPA artifact. To install on a device, sign it with a certificate/profile using your own trusted signing workflow.
