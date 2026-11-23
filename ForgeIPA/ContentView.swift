@@ -179,7 +179,7 @@ struct ContentView: View {
 
                 HStack(spacing: 10) {
                     metricCard("METADATA", value: model.report?.metadataVersion.map(String.init) ?? "—", icon: "doc.text.magnifyingglass", tint: ForgeStyle.accent)
-                    metricCard("OBJECTS", value: model.report.map { String($0.sections.count) } ?? "—", icon: "square.stack.3d.up", tint: ForgeStyle.cyan)
+                    metricCard("OBJECTS", value: model.report.map { String($0.typeCount) } ?? "—", icon: "square.stack.3d.up", tint: ForgeStyle.cyan)
                 }
 
                 infoNote
@@ -232,17 +232,7 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .disabled(model.isWorking)
-        .background {
-            ForgeDocumentPicker(isPresented: $showingImporter) { result in
-                switch result {
-                case .success(let url):
-                    model.inspect(url)
-                case .failure(let error):
-                    model.addLog("Импорт: \(error.localizedDescription)")
-                }
-            }
-            .frame(width: 0, height: 0)
-        }
+
     }
 
     private var emptyProject: some View {
@@ -317,7 +307,9 @@ struct ContentView: View {
             Divider()
             summaryLine("Unity", value: report.hasUnity ? "Обнаружен" : "Не подтверждён")
             summaryLine("Metadata", value: report.metadataPath == nil ? "Не найден" : "Найден")
-            summaryLine("Секций заголовка", value: String(report.sections.count))
+            summaryLine("Типов", value: String(report.typeCount))
+            summaryLine("Методов", value: String(report.methodCount))
+            summaryLine("Полей", value: String(report.fieldCount))
             Button { selectedTab = 1 } label: {
                 HStack {
                     Text("Открыть результаты")
@@ -346,6 +338,9 @@ struct ContentView: View {
                         summaryLine("Unity", value: report.hasUnity ? "Обнаружен" : "Не подтверждён")
                         summaryLine("Metadata", value: report.metadataPath ?? "Не найден")
                         summaryLine("Версия metadata", value: report.metadataVersion.map(String.init) ?? "—")
+                        summaryLine("Типов", value: String(report.typeCount))
+                        summaryLine("Методов", value: String(report.methodCount))
+                        summaryLine("Полей", value: String(report.fieldCount))
                     }
                     .padding(15)
                     .forgeGlass(cornerRadius: 13)
@@ -377,6 +372,15 @@ struct ContentView: View {
                     .padding(15)
                     .forgeGlass(cornerRadius: 13)
 
+                    if let dumpURL = report.dumpURL {
+                        ShareLink(item: dumpURL) {
+                            Label("Экспортировать dump.cs", systemImage: "doc.text")
+                                .font(.system(size: 11, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(13)
+                                .background(ForgeStyle.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
                     ShareLink(item: report.exportURL) {
                         Label("Экспортировать JSON-отчёт", systemImage: "square.and.arrow.up")
                             .font(.system(size: 11, weight: .semibold))
@@ -461,7 +465,7 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "info.circle.fill")
                 .foregroundStyle(ForgeStyle.orange)
-            Text("Сейчас отчёт показывает найденные данные заголовка metadata. Это ещё не готовый dump.cs и не восстановленные адреса методов.")
+            Text("dump.cs строится из таблиц metadata. Типы полей и параметров, реальные смещения и RVA требуют отдельного разбора native IL2CPP registration.")
                 .font(.system(size: 9.5))
                 .foregroundStyle(ForgeStyle.muted)
         }
