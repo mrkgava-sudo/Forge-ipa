@@ -7,6 +7,7 @@ struct IL2CPPMetadataDumpResult {
     let typeCount: Int
     let methodCount: Int
     let fieldCount: Int
+    let resolvedFieldOffsetCount: Int
 }
 
 /// Metadata-side IL2CPP dumper. It reconstructs declarations that are actually
@@ -59,7 +60,7 @@ enum IL2CPPMetadataDumper {
         let remove: Int32
     }
 
-    static func generate(from metadataURL: URL, outputDirectory: URL) throws -> IL2CPPMetadataDumpResult {
+    static func generate(from metadataURL: URL, nativeBinaryURL: URL? = nil, outputDirectory: URL) throws -> IL2CPPMetadataDumpResult {
         let data = try Data(contentsOf: metadataURL, options: [.mappedIfSafe])
         guard data.count >= 256 else { throw DumpError.invalidMetadata("Файл metadata слишком короткий.") }
 
@@ -263,6 +264,13 @@ enum IL2CPPMetadataDumper {
             return result
         }
 
+        let nativeResolution: IL2CPPFieldOffsetResult?
+        if let nativeBinaryURL {
+            nativeResolution = try? IL2CPPFieldOffsetResolver.resolve(metadataURL: metadataURL, nativeBinaryURL: nativeBinaryURL)
+        } else {
+            nativeResolution = nil
+        }
+
         var output = """
         // Forge IPA — reconstructed IL2CPP metadata declarations
         // Metadata version: \(version)
@@ -311,8 +319,14 @@ enum IL2CPPMetadataDumper {
                         if type.isEnum {
                             output += "\(indent)    // Enum member: \(fieldName) (raw value is stored in metadata defaults).\n"
                         } else {
-                            output += "\(indent)    // Type index unresolved; field offset requires native layout data.\n"
-                            output += "\(indent)    public object \(fieldName);\n"
+                            if let offset = nativeResolution?.offsetsByFieldIndex[fieldIndex] {
+                                let offsetText = offset >= 0 ? "0x" + String(offset, radix: 16) : String(offset)
+                                output += "\(indent)    // Field offset: \(offsetText). Type signature still requires native type resolution.\n"
+                                output += "\(indent)    public object \(fieldName);\n"
+                            } else {
+                                output += "\(indent)    // Type index: \(fields[fieldIndex].typeIndex); field offset not resolved.\n"
+                                output += "\(indent)    public object \(fieldName);\n"
+                            }
                         }
                     }
                 }
@@ -379,7 +393,7 @@ enum IL2CPPMetadataDumper {
             guard section.size > 0 else { return nil }
             return MetadataSection(name: index < names.count ? names[index] : "Section_\(index)", offset: UInt32(clamping: section.offset), count: UInt32(clamping: section.size))
         }
-        return IL2CPPMetadataDumpResult(version: version, sections: reportSections, dumpURL: dumpURL, typeCount: typeCount, methodCount: methodCount, fieldCount: fieldCount)
+        return IL2CPPMetadataDumpResult(version: version, sections: reportSections, dumpURL: dumpURL, typeCount: typeCount, methodCount: methodCount, fieldCount: fieldCount, resolvedFieldOffsetCount: nativeResolution?.offsetsByFieldIndex.count ?? 0)
     }
 
     enum DumpError: LocalizedError {
