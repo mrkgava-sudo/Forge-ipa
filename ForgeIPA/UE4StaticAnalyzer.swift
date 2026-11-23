@@ -21,7 +21,7 @@ struct UE4AnalysisResult {
 /// addresses or UObject offsets. No offsets are guessed.
 enum UE4StaticAnalyzer {
     private static let markerGroups: [(String, [String])] = [
-        ("Engine identity", ["Unreal Engine", "UnrealEngine", "UE4Game", "UE4"]),
+        ("Engine identity", ["Unreal Engine", "UnrealEngine", "UE4Game"]),
         ("Object system", ["GUObjectArray", "FUObjectArray", "UObject", "UClass", "UStruct", "UFunction"]),
         ("Name system", ["FNamePool", "NamePoolData", "GNames", "FNameEntry"]),
         ("Reflection", ["FProperty", "UProperty", "FField", "FFieldClass", "FStructProperty", "FObjectProperty"]),
@@ -33,7 +33,7 @@ enum UE4StaticAnalyzer {
         let data = try Data(contentsOf: binaryURL, options: [.mappedIfSafe])
         let image = try MachOInspector.inspect(binaryURL)
         var hits: [UE4MarkerHit] = []
-        var detected = false
+        var strongEngineIdentity = false
 
         for (group, values) in markerGroups {
             var groupOffsets: [Int] = []
@@ -47,7 +47,9 @@ enum UE4StaticAnalyzer {
                     cursor = range.upperBound
                     found += 1
                 }
-                if found > 0 { detected = true }
+                if found > 0 && (marker == "Unreal Engine" || marker == "UnrealEngine" || marker == "UE4Game") {
+                    strongEngineIdentity = true
+                }
             }
             if !groupOffsets.isEmpty {
                 hits.append(UE4MarkerHit(name: group, fileOffsets: Array(groupOffsets.prefix(40)).sorted()))
@@ -57,10 +59,9 @@ enum UE4StaticAnalyzer {
         let inventory = inventoryForIPAEntries(ipaEntryPaths)
         let resourceEvidence = (inventory[".pak"] ?? 0) + (inventory[".ucas"] ?? 0) +
             (inventory[".utoc"] ?? 0) + (inventory[".uasset"] ?? 0) + (inventory[".uexp"] ?? 0)
-        if resourceEvidence > 0 && (binaryURL.lastPathComponent.localizedCaseInsensitiveContains("ue4") ||
-            binaryURL.lastPathComponent.localizedCaseInsensitiveContains("shadowtracker")) {
-            detected = true
-        }
+        let executableName = binaryURL.lastPathComponent.lowercased()
+        let namedUnrealExecutable = executableName.contains("ue4") || executableName.contains("shadowtracker")
+        let detected = strongEngineIdentity || (resourceEvidence > 0 && namedUnrealExecutable)
 
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         let output = outputDirectory.appendingPathComponent("ue4-analysis.txt")
