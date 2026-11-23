@@ -147,7 +147,7 @@ final class DumperModel: ObservableObject {
                 processed += 1
                 if isMetadata { foundMetadata = destination }
                 if isNativeBinary { foundNativeBinary = destination }
-                if isUE4Candidate && !isNativeBinary { foundUE4Binary = destination }
+                if isUE4Candidate && !isNativeBinary && (foundUE4Binary == nil || namedUE4Binary) { foundUE4Binary = destination }
                 status = isMetadata ? "Metadata извлечён" : (isNativeBinary ? "Найден Unity-бинарник" : "Найден исполняемый файл приложения")
             }
 
@@ -210,7 +210,7 @@ final class DumperModel: ObservableObject {
                 addLog("Unity metadata не найдено. Проверяю исполняемый файл на признаки Unreal Engine.")
                 do {
                     let ue4Folder = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("ForgeIPA-UE4-\\(UUID().uuidString)", isDirectory: true)
+                        .appendingPathComponent("ForgeIPA-UE4-\(UUID().uuidString)", isDirectory: true)
                     let result = try UE4StaticAnalyzer.analyze(
                         binaryURL: ue4Binary,
                         ipaEntryPaths: archivePaths,
@@ -219,13 +219,13 @@ final class DumperModel: ObservableObject {
                     engineName = result.detected ? "Unreal Engine 4 (признаки найдены)" : "UE4 не подтверждён"
                     ue4MarkerCount = result.markers.reduce(0) { $0 + $1.fileOffsets.count }
                     dumpURL = result.reportURL
-                    addLog("UE4 Mach-O разобран: \\(result.architecture), секций: \\(result.sections.count).")
-                    addLog("Групп маркеров: \\(result.markers.count), совпадений строк: \\(ue4MarkerCount).")
-                    addLog("Ресурсы Unreal: " + (result.packageInventory.isEmpty ? "не найдены" : result.packageInventory.map { "\\($0.key): \\($0.value)" }.sorted().joined(separator: ", ")))
+                    addLog("UE4 Mach-O разобран: \(result.architecture), секций: \(result.sections.count).")
+                    addLog("Групп маркеров: \(result.markers.count), совпадений строк: \(ue4MarkerCount).")
+                    addLog("Ресурсы Unreal: " + (result.packageInventory.isEmpty ? "не найдены" : result.packageInventory.map { "\($0.key): \($0.value)" }.sorted().joined(separator: ", ")))
                     addLog("Создан UE4 static analysis report. Это не runtime UObject dump.")
                 } catch {
                     engineName = "Возможный UE4 — анализ не завершён"
-                    addLog("UE4-анализатор: \\(error.localizedDescription)")
+                    addLog("UE4-анализатор: \(error.localizedDescription)")
                 }
             } else {
                 addLog("global-metadata.dat и подходящий UE4 executable не найдены")
