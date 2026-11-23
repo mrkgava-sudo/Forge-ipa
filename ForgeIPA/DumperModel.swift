@@ -20,13 +20,14 @@ struct DumpReport: Encodable {
     let methodCount: Int
     let fieldCount: Int
     let resolvedFieldOffsetCount: Int
+    let resolvedMethodRvaCount: Int
     let dumpURL: URL?
     let analyzedAt: Date
     let exportURL: URL
 
     enum CodingKeys: String, CodingKey {
         case fileName, fileSize, hasUnity, metadataPath, nativeBinaryPath, metadataVersion, sections
-        case typeCount, methodCount, fieldCount, resolvedFieldOffsetCount, analyzedAt
+        case typeCount, methodCount, fieldCount, resolvedFieldOffsetCount, resolvedMethodRvaCount, analyzedAt
     }
 }
 
@@ -163,6 +164,7 @@ final class DumperModel: ObservableObject {
             var methodCount = 0
             var fieldCount = 0
             var resolvedFieldOffsetCount = 0
+            var resolvedMethodRvaCount = 0
 
             if let metadata = foundMetadata {
                 addLog("Найден global-metadata.dat")
@@ -177,8 +179,12 @@ final class DumperModel: ObservableObject {
                     methodCount = generated.methodCount
                     fieldCount = generated.fieldCount
                     resolvedFieldOffsetCount = generated.resolvedFieldOffsetCount
+                    resolvedMethodRvaCount = generated.resolvedMethodRvaCount
                     if resolvedFieldOffsetCount > 0 {
                         addLog("Разрешены реальные смещения полей: \\(resolvedFieldOffsetCount).")
+                    }
+                    if resolvedMethodRvaCount > 0 {
+                        addLog("Восстановлены адреса методов RVA: \(resolvedMethodRvaCount).")
                     }
                     addLog("Создан dump.cs: \(typeCount) типов, \(fieldCount) полей, \(methodCount) методов.")
                 } catch {
@@ -203,6 +209,7 @@ final class DumperModel: ObservableObject {
                 methodCount: methodCount,
                 fieldCount: fieldCount,
                 resolvedFieldOffsetCount: resolvedFieldOffsetCount,
+                resolvedMethodRvaCount: resolvedMethodRvaCount,
                 dumpURL: dumpURL,
                 analyzedAt: Date(),
                 exportURL: export
