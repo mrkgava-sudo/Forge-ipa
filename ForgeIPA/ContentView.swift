@@ -312,6 +312,7 @@ struct ContentView: View {
             summaryLine("Методов", value: String(report.methodCount))
             summaryLine("Полей", value: String(report.fieldCount))
             summaryLine("Смещения полей", value: "\(report.resolvedFieldOffsetCount) / \(report.fieldCount)")
+            summaryLine("RVA методов", value: String(report.resolvedMethodRvaCount))
             Button { selectedTab = 1 } label: {
                 HStack {
                     Text("Открыть результаты")
@@ -345,6 +346,7 @@ struct ContentView: View {
                         summaryLine("Методов", value: String(report.methodCount))
                         summaryLine("Полей", value: String(report.fieldCount))
                         summaryLine("Смещения полей", value: "\(report.resolvedFieldOffsetCount) / \(report.fieldCount)")
+                        summaryLine("RVA методов", value: String(report.resolvedMethodRvaCount))
                     }
                     .padding(15)
                     .forgeGlass(cornerRadius: 13)
