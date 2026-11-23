@@ -17,6 +17,9 @@ on:
       - ".github/workflows/build.yml"
       - "scripts/**"
       - "ForgeIPA/Assets.xcassets/**"
+concurrency:
+  group: forgeipa-build-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
