@@ -244,7 +244,7 @@ final class DumperModel: ObservableObject {
                 hasUnity: hasUnity,
                 ue4MarkerCount: ue4MarkerCount,
                 metadataPath: foundMetadata?.lastPathComponent,
-                nativeBinaryPath: foundNativeBinary?.lastPathComponent,
+                nativeBinaryPath: (foundNativeBinary ?? foundUE4Binary)?.lastPathComponent,
                 metadataVersion: version,
                 sections: sections,
                 typeCount: typeCount,
