@@ -17,3 +17,9 @@ Reported offsets are offsets inside the metadata file, not runtime memory addres
 GitHub Actions builds an unsigned iOS app and packages it as an unsigned IPA artifact. To install on a device, sign it with a certificate/profile using your own trusted signing workflow.
 
 The Xcode project is generated from `project.yml` using XcodeGen.
+
+
+## Interface update
+The current interface branch adopts the native visual language used by Signet: adaptive iOS grouped surfaces, restrained system-blue accents, translucent panels, compact typography, and a four-section bottom navigation. IPA selection uses the UIKit document picker with copy-on-import so the selected file is staged in the app container before analysis.
+
+The current report is still an intermediate metadata-header inspection. Full IL2CPP type/method reconstruction and real `dump.cs` generation are not implemented yet.
