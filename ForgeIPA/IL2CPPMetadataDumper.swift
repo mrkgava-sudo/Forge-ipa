@@ -243,6 +243,11 @@ enum IL2CPPMetadataDumper {
             return value.isEmpty ? "arg\(index)" : value
         }
 
+        func parameterTypeIndex(_ index: Int) -> Int32 {
+            guard index >= 0, index < parameterCount else { return -1 }
+            return (try? i32(parameterSection.offset + index * parameterStride + 8)) ?? -1
+        }
+
         func safeIdentifier(_ source: String, fallback: String) -> String {
             let allowed = source.unicodeScalars.map { scalar -> Character in
                 let value = scalar.value
