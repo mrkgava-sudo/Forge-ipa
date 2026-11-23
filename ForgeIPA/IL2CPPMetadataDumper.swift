@@ -322,11 +322,11 @@ enum IL2CPPMetadataDumper {
                         } else {
                             if let offset = nativeResolution?.offsetsByFieldIndex[fieldIndex] {
                                 let offsetText = offset >= 0 ? "0x" + String(offset, radix: 16) : String(offset)
-                                output += "\(indent)    // Field offset: \(offsetText). Type signature resolved from native Il2CppType table when available.\n"
+                                output += "\(indent)    // Field offset: \(offsetText); type: \(fieldType).\n"
                                 output += "\(indent)    public \(fieldType) \(fieldName);\n"
                             } else {
                                 output += "\(indent)    // Type index: \(fields[fieldIndex].typeIndex); field offset not resolved.\n"
-                                output += "\(indent)    public object \(fieldName);\n"
+                                output += "\(indent)    public \(fieldType) \(fieldName);\n"
                             }
                         }
                     }
