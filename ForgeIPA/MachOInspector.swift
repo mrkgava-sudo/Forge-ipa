@@ -120,7 +120,7 @@ enum MachOInspector {
                         name: fixedString(base, 16),
                         virtualAddress: u64le(base + 32),
                         size: u64le(base + 40),
-                        fileOffset: u32le(base + 48)
+                        fileOffset: UInt32(clamping: sliceOffset + Int(u32le(base + 48)))
                     ))
                 }
             }
