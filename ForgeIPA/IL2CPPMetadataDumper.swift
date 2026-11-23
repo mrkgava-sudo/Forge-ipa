@@ -381,9 +381,9 @@ enum IL2CPPMetadataDumper {
                         let staticText = isStatic && !isConstructor ? " static" : ""
                         let resolvedReturnType = nativeResolution?.typeNamesByTypeIndex[Int(method.returnTypeIndex)] ?? "object"
                         let returnType = isConstructor ? "" : resolvedReturnType + " "
-                        output += "\\(indent)    // Return Il2CppType index: \\(method.returnTypeIndex).\\n"
+                        output += "\(indent)    // Return Il2CppType index: \(method.returnTypeIndex).\n"
                         if let rva = nativeResolution?.methodRVAsByIndex[methodIndex] {
-                            output += "\\(indent)    // RVA: 0x\\(String(rva, radix: 16)).\\n"
+                            output += "\(indent)    // RVA: 0x\(String(rva, radix: 16)).\n"
                         }
                         output += "\(indent)    \(access)\(staticText) \(returnType)\(methodName)(\(parameters.joined(separator: ", ")));\n"
                     }
