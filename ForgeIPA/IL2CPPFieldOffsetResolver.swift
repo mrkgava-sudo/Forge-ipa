@@ -4,6 +4,7 @@ struct IL2CPPFieldOffsetResult {
     let offsetsByFieldIndex: [Int: Int32]
     let registrationFound: Bool
     let typeNamesByTypeIndex: [Int: String]
+    let methodRVAsByIndex: [Int: UInt64]
 }
 
 enum IL2CPPFieldOffsetResolver {
@@ -11,7 +12,7 @@ enum IL2CPPFieldOffsetResolver {
         let metadata = try Data(contentsOf: metadataURL, options: [.mappedIfSafe])
         let binary = try Data(contentsOf: nativeBinaryURL, options: [.mappedIfSafe])
         guard metadata.count >= 256, metadataU32(metadata, 0) == 0xFAB11BAF else {
-            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false, typeNamesByTypeIndex: [:])
+            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false, typeNamesByTypeIndex: [:], methodRVAsByIndex: [:])
         }
         let version = metadataU32(metadata, 4)
         guard version == 27 || version == 28 || version == 29 || version == 31 else {
@@ -233,7 +234,147 @@ enum IL2CPPFieldOffsetResolver {
             }
         }
 
-        return IL2CPPFieldOffsetResult(offsetsByFieldIndex: resolved, registrationFound: true, typeNamesByTypeIndex: resolvedTypeNames)
+        var methodRVAs: [Int: UInt64] = [:]
+        let imageSection = metadataSection(metadata, index: 20)
+        let methodSection = metadataSection(metadata, index: 5)
+        let imageStride = 40
+        let methodStride: Int
+        if version == 31 {
+            let divides40 = methodSection.size > 0 && methodSection.size % 40 == 0
+            let divides36 = methodSection.size > 0 && methodSection.size % 36 == 0
+            methodStride = divides40 && !divides36 ? 40 : 36
+        } else {
+            methodStride = 32
+        }
+        if imageSection.size > 0, imageSection.size % imageStride == 0,
+           methodSection.size > 0, methodSection.size % methodStride == 0,
+           image.imageBase > 0 {
+            let imageCount = imageSection.size / imageStride
+            let imageNames = (0..<imageCount).map { index -> (String, Int, Int) in
+                let base = imageSection.offset + index * imageStride
+                let nameIndex = Int32(bitPattern: metadataU32(metadata, base))
+                let typeStart = Int(Int32(bitPattern: metadataU32(metadata, base + 8)))
+                let typeSize = Int(metadataU32(metadata, base + 12))
+                return (metadataStringForIndex(metadata, nameIndex), typeStart, typeSize)
+            }
+
+            func cString(_ address: UInt64) -> String? {
+                guard let start = fileOffset(for: address), start < binary.count else { return nil }
+                var end = start
+                let limit = min(binary.count, start + 512)
+                while end < limit, binary[end] != 0 { end += 1 }
+                guard end > start else { return nil }
+                return String(data: binary[start..<end], encoding: .utf8)
+            }
+            func references(to target: UInt64) -> [UInt64] {
+                var result: [UInt64] = []
+                for section in searchable {
+                    let start = Int(section.fileOffset)
+                    let end = min(binary.count, start + Int(min(section.size, UInt64(binary.count))))
+                    guard start >= 0, start + 8 <= end else { continue }
+                    var cursor = start
+                    while cursor + 8 <= end {
+                        if pointer(cursor) == target {
+                            result.append(section.virtualAddress + UInt64(cursor - start))
+                            if result.count >= 128 { return result }
+                        }
+                        cursor += 8
+                    }
+                }
+                return result
+            }
+
+            let needle = Data("mscorlib.dll\0".utf8)
+            var stringAddress: UInt64?
+            for section in searchable where section.name == "__cstring" {
+                let start = Int(section.fileOffset)
+                let end = min(binary.count, start + Int(min(section.size, UInt64(binary.count))))
+                guard start >= 0, start < end else { continue }
+                if let range = binary.range(of: needle, options: [], in: start..<end) {
+                    stringAddress = section.virtualAddress + UInt64(range.lowerBound - start)
+                    break
+                }
+            }
+
+            if let stringAddress {
+                let firstReferences = references(to: stringAddress)
+                registrationSearch: for first in firstReferences {
+                    for second in references(to: first) {
+                        for imageIndex in stride(from: imageCount - 1, through: 0, by: -1) {
+                            let delta = UInt64(imageIndex) * 8
+                            guard second >= delta else { continue }
+                            for third in references(to: second - delta) {
+                                guard third >= 8, let countOffset = fileOffset(for: third - 8),
+                                      pointer(countOffset) == UInt64(imageCount) else { continue }
+                                let registration = third - UInt64(version >= 29 ? 14 : 13) * 8
+                                guard let registrationOffset = fileOffset(for: registration) else { continue }
+                                let moduleLayouts = version >= 29 ? [104, 120, 96, 112] : [104, 96]
+                                var moduleArrayOffset: Int?
+                                var moduleCount = 0
+                                for countOffsetInStruct in moduleLayouts {
+                                    guard registrationOffset + countOffsetInStruct + 16 <= binary.count else { continue }
+                                    let count = pointer(registrationOffset + countOffsetInStruct)
+                                    let arrayPointer = pointer(registrationOffset + countOffsetInStruct + 8)
+                                    if count == UInt64(imageCount), pointerArrayLooksValid(arrayPointer, count: imageCount),
+                                       let arrayOffset = fileOffset(for: arrayPointer) {
+                                        moduleArrayOffset = arrayOffset
+                                        moduleCount = imageCount
+                                        break
+                                    }
+                                }
+                                guard let moduleArrayOffset, moduleCount == imageCount else { continue }
+
+                                var modules: [String: (Int, Int)] = [:]
+                                for moduleIndex in 0..<moduleCount {
+                                    let modulePointer = pointer(moduleArrayOffset + moduleIndex * 8)
+                                    guard let moduleOffset = fileOffset(for: modulePointer),
+                                          moduleOffset + 24 <= binary.count,
+                                          let moduleName = cString(pointer(moduleOffset)),
+                                          !moduleName.isEmpty else { continue }
+                                    let count = Int(min(pointer(moduleOffset + 8), 2_000_000))
+                                    let methodsPointer = pointer(moduleOffset + 16)
+                                    guard let methodsOffset = fileOffset(for: methodsPointer),
+                                          methodsOffset + count * 8 <= binary.count else { continue }
+                                    modules[moduleName] = (methodsOffset, count)
+                                }
+
+                                for methodIndex in 0..<(methodSection.size / methodStride) {
+                                    let methodBase = methodSection.offset + methodIndex * methodStride
+                                    let declaringType = Int(Int32(bitPattern: metadataU32(metadata, methodBase + 4)))
+                                    let tokenOffset = version == 31 ? (methodStride == 40 ? 28 : 24) : 20
+                                    let token = metadataU32(metadata, methodBase + tokenOffset)
+                                    let rid = Int(token & 0x00FFFFFF)
+                                    guard rid > 0 else { continue }
+                                    guard let owningImage = imageNames.first(where: {
+                                        declaringType >= $0.1 && declaringType < $0.1 + $0.2
+                                    }), let module = modules[owningImage.0] else { continue }
+                                    let pointerIndex = rid - 1
+                                    guard pointerIndex < module.1 else { continue }
+                                    let methodPointer = pointer(module.0 + pointerIndex * 8)
+                                    if methodPointer >= image.imageBase {
+                                        methodRVAs[methodIndex] = methodPointer - image.imageBase
+                                    }
+                                }
+                                break registrationSearch
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return IL2CPPFieldOffsetResult(offsetsByFieldIndex: resolved, registrationFound: true, typeNamesByTypeIndex: resolvedTypeNames, methodRVAsByIndex: methodRVAs)
+    }
+
+    private static func metadataStringForIndex(_ data: Data, _ index: Int32) -> String {
+        let strings = metadataSection(data, index: 2)
+        guard index >= 0 else { return "" }
+        let start = strings.offset + Int(index)
+        guard start >= strings.offset, start < strings.offset + strings.size else { return "" }
+        var end = start
+        let limit = strings.offset + strings.size
+        while end < limit, data[end] != 0 { end += 1 }
+        return String(data: data[start..<end], encoding: .utf8) ?? ""
     }
 
     private static func metadataU16(_ data: Data, _ offset: Int) -> UInt16 {
