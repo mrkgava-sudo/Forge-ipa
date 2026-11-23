@@ -21,7 +21,7 @@ The Xcode project is generated from `project.yml` using XcodeGen.
 ## Interface update
 The current interface branch adopts the native visual language used by Signet: adaptive iOS grouped surfaces, restrained system-blue accents, translucent panels, compact typography, and a four-section bottom navigation. IPA selection uses the UIKit document picker with copy-on-import so the selected file is staged in the app container before analysis.
 
-The current report is still an intermediate metadata-header inspection. Full IL2CPP type/method reconstruction and real `dump.cs` generation are not implemented yet.
+The Unity parser currently reconstructs declarations from supported IL2CPP metadata layouts and attempts native registration resolution. It has not yet been validated against a representative set of real game IPA files; generated declarations and native offsets must be checked against the exact binary.
 
 ## Unreal Engine 4 static analysis
 - Detect and extract the main iOS app executable from the IPA, then inspect its ARM64 Mach-O image.
