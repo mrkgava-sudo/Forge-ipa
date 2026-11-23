@@ -15,12 +15,12 @@ enum IL2CPPFieldOffsetResolver {
         }
         let version = metadataU32(metadata, 4)
         guard version == 27 || version == 28 || version == 29 || version == 31 else {
-            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false)
+            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false, typeNamesByTypeIndex: [:])
         }
         let typeSection = metadataSection(metadata, index: 19)
         let fieldSection = metadataSection(metadata, index: 11)
         guard typeSection.size > 0, typeSection.size % 88 == 0, fieldSection.size % 12 == 0 else {
-            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false)
+            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false, typeNamesByTypeIndex: [:])
         }
 
         let typeCount = typeSection.size / 88
@@ -97,12 +97,12 @@ enum IL2CPPFieldOffsetResolver {
         guard let registrationBase,
               let registrationOffset = fileOffset(for: registrationBase),
               registrationOffset + 96 <= binary.count else {
-            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false)
+            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false, typeNamesByTypeIndex: [:])
         }
 
         let offsetsPointer = pointer(registrationOffset + 88)
         guard let offsetsArray = fileOffset(for: offsetsPointer) else {
-            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false)
+            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false, typeNamesByTypeIndex: [:])
         }
 
         var byvalTypeIndices: [Int32] = []
