@@ -61,7 +61,7 @@ struct ContentView: View {
                 case .success(let url):
                     model.inspect(url)
                 case .failure(let error):
-                    model.addLog("Импорт: \\(error.localizedDescription)")
+                    model.addLog("Импорт: \(error.localizedDescription)")
                 }
             }
             .ignoresSafeArea()
