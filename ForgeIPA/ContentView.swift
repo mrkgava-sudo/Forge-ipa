@@ -178,8 +178,8 @@ struct ContentView: View {
                 }
 
                 HStack(spacing: 10) {
-                    metricCard("METADATA", value: model.report?.metadataVersion.map(String.init) ?? "—", icon: "doc.text.magnifyingglass", tint: ForgeStyle.accent)
-                    metricCard("OBJECTS", value: model.report.map { String($0.typeCount) } ?? "—", icon: "square.stack.3d.up", tint: ForgeStyle.cyan)
+                    metricCard(model.report?.engineName.contains("Unreal") == true || model.report?.engineName.contains("UE4") == true ? "UE4 MARKERS" : "METADATA", value: model.report.map { $0.engineName.contains("Unreal") || $0.engineName.contains("UE4") ? String($0.ue4MarkerCount) : ($0.metadataVersion.map(String.init) ?? "—") } ?? "—", icon: "doc.text.magnifyingglass", tint: ForgeStyle.accent)
+                    metricCard("OBJECTS", value: model.report.map { $0.engineName.contains("Unreal") || $0.engineName.contains("UE4") ? "—" : String($0.typeCount) } ?? "—", icon: "square.stack.3d.up", tint: ForgeStyle.cyan)
                 }
 
                 infoNote
@@ -362,7 +362,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         sectionTitle("Секции metadata")
                         if report.sections.isEmpty {
-                            Text("Секции не распознаны. Возможно, версия metadata отличается от поддерживаемого формата.")
+                            Text(report.engineName.contains("Unreal") || report.engineName.contains("UE4") ? "Для UE4 используется отдельный статический отчёт. Секции IL2CPP metadata здесь не применяются." : "Секции не распознаны. Возможно, версия metadata отличается от поддерживаемого формата.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(ForgeStyle.muted)
                         } else {
