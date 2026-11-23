@@ -24,7 +24,9 @@ enum IL2CPPMetadataDumper {
         let parent: Int32
         let fieldStart: Int32
         let methodStart: Int32
+        let propertyStart: Int32
         let methodCount: Int
+        let propertyCount: Int
         let fieldCount: Int
         let isValueType: Bool
         let isEnum: Bool
@@ -41,6 +43,12 @@ enum IL2CPPMetadataDumper {
     private struct FieldDefinition {
         let name: String
         let typeIndex: Int32
+    }
+
+    private struct PropertyDefinition {
+        let name: String
+        let getter: Int32
+        let setter: Int32
     }
 
     static func generate(from metadataURL: URL, outputDirectory: URL) throws -> IL2CPPMetadataDumpResult {
@@ -100,6 +108,7 @@ enum IL2CPPMetadataDumper {
         let methodSection = try section(5)
         let fieldSection = try section(11)
         let parameterSection = try section(10)
+        let propertySection = try section(4)
 
         let typeStride = 88       // Il2CppTypeDefinition, metadata 27–31
         let methodStride: Int
@@ -115,12 +124,14 @@ enum IL2CPPMetadataDumper {
             methodStride = 32
         }
         let fieldStride = 12      // Il2CppFieldDefinition, metadata 27–31
-        let parameterStride = 12 // Il2CppParameterDefinition, metadata 27–29
+        let parameterStride = 12 // Il2CppParameterDefinition, metadata 27–31
+        let propertyStride = 20
 
         guard typeSection.size % typeStride == 0,
               methodSection.size % methodStride == 0,
               fieldSection.size % fieldStride == 0,
-              parameterSection.size % parameterStride == 0 else {
+              parameterSection.size % parameterStride == 0,
+              propertySection.size % propertyStride == 0 else {
             throw DumpError.invalidMetadata("Размеры таблиц не соответствуют поддерживаемым структурам metadata.")
         }
 
@@ -128,6 +139,7 @@ enum IL2CPPMetadataDumper {
         let methodCount = methodSection.size / methodStride
         let fieldCount = fieldSection.size / fieldStride
         let parameterCount = parameterSection.size / parameterStride
+        let propertyCount = propertySection.size / propertyStride
         guard typeCount > 0, typeCount <= 2_000_000,
               methodCount <= 8_000_000, fieldCount <= 8_000_000 else {
             throw DumpError.invalidMetadata("Некорректное количество записей в metadata.")
@@ -142,7 +154,9 @@ enum IL2CPPMetadataDumper {
             let parent = try i32(base + 16)
             let fieldStart = try i32(base + 32)
             let methodStart = try i32(base + 36)
+            let propertyStart = try i32(base + 44)
             let methodCountForType = Int(try u16(base + 64))
+            let propertyCountForType = Int(try u16(base + 66))
             let fieldCountForType = Int(try u16(base + 68))
             let bitfield = try u32(base + 80)
             types.append(TypeDefinition(
@@ -151,7 +165,9 @@ enum IL2CPPMetadataDumper {
                 parent: parent,
                 fieldStart: fieldStart,
                 methodStart: methodStart,
+                propertyStart: propertyStart,
                 methodCount: methodCountForType,
+                propertyCount: propertyCountForType,
                 fieldCount: fieldCountForType,
                 isValueType: (bitfield & 1) != 0,
                 isEnum: (bitfield & 2) != 0
@@ -179,6 +195,17 @@ enum IL2CPPMetadataDumper {
         for index in 0..<fieldCount {
             let base = fieldSection.offset + index * fieldStride
             fields.append(FieldDefinition(name: stringAt(try i32(base)), typeIndex: try i32(base + 4)))
+        }
+
+        var properties: [PropertyDefinition] = []
+        properties.reserveCapacity(propertyCount)
+        for index in 0..<propertyCount {
+            let base = propertySection.offset + index * propertyStride
+            properties.append(PropertyDefinition(
+                name: stringAt(try i32(base)),
+                getter: try i32(base + 4),
+                setter: try i32(base + 8)
+            ))
         }
 
         func parameterName(_ index: Int) -> String {
@@ -230,6 +257,19 @@ enum IL2CPPMetadataDumper {
             }
             output += "\(indent)public \(kind) \(className)\(inheritance)\n\(indent){\n"
 
+            if type.propertyStart >= 0, type.propertyCount > 0 {
+                let start = Int(type.propertyStart)
+                let end = min(start + type.propertyCount, properties.count)
+                if start < end {
+                    for propertyIndex in start..<end {
+                        let property = properties[propertyIndex]
+                        let propertyName = safeIdentifier(property.name, fallback: "Property_\(propertyIndex)")
+                        let accessors = (property.getter >= 0 ? "get; " : "") + (property.setter >= 0 ? "set; " : "")
+                        output += "\(indent)    // Property type index is resolved from the native type table in a later pass.\n"
+                        output += "\(indent)    public object \(propertyName) { \(accessors)}\n"
+                    }
+                }
+            }
             if type.fieldStart >= 0, type.fieldCount > 0 {
                 let start = Int(type.fieldStart)
                 let end = min(start + type.fieldCount, fields.count)
