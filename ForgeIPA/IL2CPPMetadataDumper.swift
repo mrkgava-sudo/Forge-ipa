@@ -64,7 +64,7 @@ enum IL2CPPMetadataDumper {
         }
 
         // GlobalMetadataHeader is a sequence of (offset, byte-size) pairs.
-        // These indices are stable for metadata versions 27–29.
+        // The core table indices are stable for metadata versions 27–31.
         var sections: [Section] = []
         for index in 0..<31 {
             let pairOffset = 8 + index * 8
@@ -114,14 +114,14 @@ enum IL2CPPMetadataDumper {
         } else {
             methodStride = 32
         }
-        let fieldStride = 12      // Il2CppFieldDefinition, metadata 27–29
+        let fieldStride = 12      // Il2CppFieldDefinition, metadata 27–31
         let parameterStride = 12 // Il2CppParameterDefinition, metadata 27–29
 
         guard typeSection.size % typeStride == 0,
               methodSection.size % methodStride == 0,
               fieldSection.size % fieldStride == 0,
               parameterSection.size % parameterStride == 0 else {
-            throw DumpError.invalidMetadata("Размеры таблиц не соответствуют структурам metadata 27–29.")
+            throw DumpError.invalidMetadata("Размеры таблиц не соответствуют поддерживаемым структурам metadata.")
         }
 
         let typeCount = typeSection.size / typeStride
@@ -283,7 +283,12 @@ enum IL2CPPMetadataDumper {
         guard let outputData = output.data(using: .utf8) else { throw DumpError.invalidMetadata("Не удалось сформировать текст dump.cs.") }
         try outputData.write(to: dumpURL, options: .atomic)
 
-        let names = ["StringLiteral", "StringLiteralData", "String", "Events", "Properties", "Methods", "ParameterDefaultValues", "FieldDefaultValues", "DefaultValues", "FieldMarshaledSizes", "Parameters", "Fields", "GenericParameters", "GenericParameterConstraints", "GenericContainers", "NestedTypes", "Interfaces", "VTables", "InterfaceOffsets", "TypeDefinitions", "Images", "Assemblies", "FieldRefs", "ReferencedAssemblies", "AttributeInfo", "AttributeTypes", "UnresolvedVirtualCallParameterTypes", "UnresolvedVirtualCallParameterRanges", "WindowsRuntimeTypeNames", "WindowsRuntimeStrings", "ExportedTypeDefinitions", "AttributeData", "AttributeDataRanges"]
+        let names: [String]
+        if version >= 29 {
+            names = ["StringLiteral", "StringLiteralData", "String", "Events", "Properties", "Methods", "ParameterDefaultValues", "FieldDefaultValues", "DefaultValues", "FieldMarshaledSizes", "Parameters", "Fields", "GenericParameters", "GenericParameterConstraints", "GenericContainers", "NestedTypes", "Interfaces", "VTables", "InterfaceOffsets", "TypeDefinitions", "Images", "Assemblies", "FieldRefs", "ReferencedAssemblies", "AttributeData", "AttributeDataRanges", "UnresolvedVirtualCallParameterTypes", "UnresolvedVirtualCallParameterRanges", "WindowsRuntimeTypeNames", "WindowsRuntimeStrings", "ExportedTypeDefinitions"]
+        } else {
+            names = ["StringLiteral", "StringLiteralData", "String", "Events", "Properties", "Methods", "ParameterDefaultValues", "FieldDefaultValues", "DefaultValues", "FieldMarshaledSizes", "Parameters", "Fields", "GenericParameters", "GenericParameterConstraints", "GenericContainers", "NestedTypes", "Interfaces", "VTables", "InterfaceOffsets", "TypeDefinitions", "Images", "Assemblies", "FieldRefs", "ReferencedAssemblies", "AttributeInfo", "AttributeTypes", "UnresolvedVirtualCallParameterTypes", "UnresolvedVirtualCallParameterRanges", "WindowsRuntimeTypeNames", "WindowsRuntimeStrings", "ExportedTypeDefinitions"]
+        }
         let reportSections = sections.enumerated().compactMap { index, section -> MetadataSection? in
             guard section.size > 0 else { return nil }
             return MetadataSection(name: index < names.count ? names[index] : "Section_\(index)", offset: UInt32(clamping: section.offset), count: UInt32(clamping: section.size))
