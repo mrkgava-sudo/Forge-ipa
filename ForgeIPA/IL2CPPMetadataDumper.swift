@@ -316,13 +316,14 @@ enum IL2CPPMetadataDumper {
                 if start < end {
                     for fieldIndex in start..<end {
                         let fieldName = safeIdentifier(fields[fieldIndex].name, fallback: "field_\(fieldIndex)")
+                        let fieldType = nativeResolution?.typeNamesByTypeIndex[Int(fields[fieldIndex].typeIndex)] ?? "object"
                         if type.isEnum {
                             output += "\(indent)    // Enum member: \(fieldName) (raw value is stored in metadata defaults).\n"
                         } else {
                             if let offset = nativeResolution?.offsetsByFieldIndex[fieldIndex] {
                                 let offsetText = offset >= 0 ? "0x" + String(offset, radix: 16) : String(offset)
-                                output += "\(indent)    // Field offset: \(offsetText). Type signature still requires native type resolution.\n"
-                                output += "\(indent)    public object \(fieldName);\n"
+                                output += "\(indent)    // Field offset: \(offsetText). Type signature resolved from native Il2CppType table when available.\n"
+                                output += "\(indent)    public \(fieldType) \(fieldName);\n"
                             } else {
                                 output += "\(indent)    // Type index: \(fields[fieldIndex].typeIndex); field offset not resolved.\n"
                                 output += "\(indent)    public object \(fieldName);\n"
@@ -364,12 +365,15 @@ enum IL2CPPMetadataDumper {
                             for parameter in 0..<method.parameterCount {
                                 let absolute = parameterStart + parameter
                                 let parameterNameSafe = safeIdentifier(parameterName(absolute), fallback: "arg\(parameter)")
-                                parameters.append("object \(parameterNameSafe)")
+                                let rawTypeIndex = (try? i32(parameterSection.offset + absolute * parameterStride + 8)) ?? -1
+                                let parameterType = nativeResolution?.typeNamesByTypeIndex[Int(rawTypeIndex)] ?? "object"
+                                parameters.append("\(parameterType) \(parameterNameSafe)")
                             }
                         }
                         let staticText = isStatic && !isConstructor ? " static" : ""
-                        let returnType = isConstructor ? "" : "object "
-                        output += "\(indent)    // Return/parameter types unresolved until native type registration is parsed.\n"
+                        let resolvedReturnType = nativeResolution?.typeNamesByTypeIndex[Int(method.returnTypeIndex)] ?? "object"
+                        let returnType = isConstructor ? "" : resolvedReturnType + " "
+                        output += "\(indent)    // Return Il2CppType index: \(method.returnTypeIndex).\n"
                         output += "\(indent)    \(access)\(staticText) \(returnType)\(methodName)(\(parameters.joined(separator: ", ")));\n"
                     }
                 }
