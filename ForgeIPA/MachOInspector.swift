@@ -11,6 +11,7 @@ struct MachOSectionInfo {
 struct MachOInfo {
     let architecture: String
     let fileType: UInt32
+    let imageBase: UInt64
     let segments: [String]
     let sections: [MachOSectionInfo]
 }
@@ -98,6 +99,7 @@ enum MachOInspector {
             throw InspectionError.invalidImage
         }
 
+        var imageBase: UInt64 = 0
         var segments: [String] = []
         var sections: [MachOSectionInfo] = []
         var cursor = sliceOffset + 32
@@ -109,6 +111,7 @@ enum MachOInspector {
 
             if command == 0x19, commandSize >= 72 {
                 let segmentName = fixedString(cursor + 8, 16)
+                if segmentName == "__TEXT" { imageBase = u64le(cursor + 24) }
                 let sectionCount = Int(u32le(cursor + 64))
                 guard sectionCount >= 0, sectionCount <= 100_000,
                       72 + sectionCount * 80 <= commandSize else { throw InspectionError.invalidImage }
@@ -127,6 +130,6 @@ enum MachOInspector {
             cursor += commandSize
         }
 
-        return MachOInfo(architecture: architecture, fileType: fileType, segments: segments, sections: sections)
+        return MachOInfo(architecture: architecture, fileType: fileType, imageBase: imageBase, segments: segments, sections: sections)
     }
 }
