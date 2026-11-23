@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import ZIPFoundation
 
 struct MetadataSection: Codable, Identifiable {
