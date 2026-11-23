@@ -35,10 +35,10 @@ enum IL2CPPFieldOffsetResolver {
 
         func pointer(_ offset: Int) -> UInt64 {
             guard offset >= 0, offset + 8 <= binary.count else { return 0 }
-            let value = UInt64(binary[offset]) | (UInt64(binary[offset + 1]) << 8) |
-                (UInt64(binary[offset + 2]) << 16) | (UInt64(binary[offset + 3]) << 24) |
-                (UInt64(binary[offset + 4]) << 32) | (UInt64(binary[offset + 5]) << 40) |
-                (UInt64(binary[offset + 6]) << 48) | (UInt64(binary[offset + 7]) << 56)
+            var value: UInt64 = 0
+            for byteIndex in 0..<8 {
+                value |= UInt64(binary[offset + byteIndex]) << (byteIndex * 8)
+            }
             return value & 0x0000FFFFFFFFFFFF
         }
         func fileOffset(for address: UInt64) -> Int? {
@@ -238,14 +238,7 @@ enum IL2CPPFieldOffsetResolver {
         let imageSection = metadataSection(metadata, index: 20)
         let methodSection = metadataSection(metadata, index: 5)
         let imageStride = 40
-        let methodStride: Int
-        if version == 31 {
-            let divides40 = methodSection.size > 0 && methodSection.size % 40 == 0
-            let divides36 = methodSection.size > 0 && methodSection.size % 36 == 0
-            methodStride = divides40 && !divides36 ? 40 : 36
-        } else {
-            methodStride = 32
-        }
+        let methodStride = version == 31 ? 36 : 32
         if imageSection.size > 0, imageSection.size % imageStride == 0,
            methodSection.size > 0, methodSection.size % methodStride == 0,
            image.imageBase > 0 {
@@ -341,7 +334,7 @@ enum IL2CPPFieldOffsetResolver {
                                 for methodIndex in 0..<(methodSection.size / methodStride) {
                                     let methodBase = methodSection.offset + methodIndex * methodStride
                                     let declaringType = Int(Int32(bitPattern: metadataU32(metadata, methodBase + 4)))
-                                    let tokenOffset = version == 31 ? (methodStride == 40 ? 28 : 24) : 20
+                                    let tokenOffset = version == 31 ? 24 : 20
                                     let token = metadataU32(metadata, methodBase + tokenOffset)
                                     let rid = Int(token & 0x00FFFFFF)
                                     guard rid > 0 else { continue }
