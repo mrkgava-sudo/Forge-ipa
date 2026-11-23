@@ -3,6 +3,7 @@ import Foundation
 struct IL2CPPFieldOffsetResult {
     let offsetsByFieldIndex: [Int: Int32]
     let registrationFound: Bool
+    let typeNamesByTypeIndex: [Int: String]
 }
 
 enum IL2CPPFieldOffsetResolver {
@@ -10,7 +11,7 @@ enum IL2CPPFieldOffsetResolver {
         let metadata = try Data(contentsOf: metadataURL, options: [.mappedIfSafe])
         let binary = try Data(contentsOf: nativeBinaryURL, options: [.mappedIfSafe])
         guard metadata.count >= 256, metadataU32(metadata, 0) == 0xFAB11BAF else {
-            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false)
+            return IL2CPPFieldOffsetResult(offsetsByFieldIndex: [:], registrationFound: false, typeNamesByTypeIndex: [:])
         }
         let version = metadataU32(metadata, 4)
         guard version == 27 || version == 28 || version == 29 || version == 31 else {
@@ -134,7 +135,111 @@ enum IL2CPPFieldOffsetResolver {
                 resolved[globalIndex] = adjusted
             }
         }
-        return IL2CPPFieldOffsetResult(offsetsByFieldIndex: resolved, registrationFound: true)
+        var resolvedTypeNames: [Int: String] = [:]
+        let typesCountRaw = pointer(registrationOffset + 48)
+        let typesPointer = pointer(registrationOffset + 56)
+        if typesCountRaw > 0, typesCountRaw <= 8_000_000,
+           let typesArray = fileOffset(for: typesPointer),
+           typesArray + Int(typesCountRaw) * 8 <= binary.count {
+            let typesCount = Int(typesCountRaw)
+            var typePointers: [UInt64] = []
+            typePointers.reserveCapacity(typesCount)
+            var pointerToIndex: [UInt64: Int] = [:]
+            for index in 0..<typesCount {
+                let value = pointer(typesArray + index * 8)
+                typePointers.append(value)
+                if value != 0 { pointerToIndex[value] = index }
+            }
+
+            let stringSection = metadataSection(metadata, index: 2)
+            let genericSection = metadataSection(metadata, index: 12)
+            func metadataString(_ index: Int32) -> String {
+                guard index >= 0 else { return "" }
+                let start = stringSection.offset + Int(index)
+                guard start >= stringSection.offset, start < stringSection.offset + stringSection.size else { return "" }
+                var end = start
+                let limit = stringSection.offset + stringSection.size
+                while end < limit, metadata[end] != 0 { end += 1 }
+                return String(data: metadata[start..<end], encoding: .utf8) ?? ""
+            }
+            var typeNames: [(String, String)] = []
+            typeNames.reserveCapacity(typeCount)
+            for index in 0..<typeCount {
+                let base = typeSection.offset + index * 88
+                typeNames.append((
+                    metadataString(Int32(bitPattern: metadataU32(metadata, base))),
+                    metadataString(Int32(bitPattern: metadataU32(metadata, base + 4)))
+                ))
+            }
+
+            func genericParameterName(_ index: Int) -> String? {
+                guard index >= 0, genericSection.size % 16 == 0,
+                      index < genericSection.size / 16 else { return nil }
+                let nameIndex = Int32(bitPattern: metadataU32(metadata, genericSection.offset + index * 16 + 4))
+                let value = metadataString(nameIndex)
+                return value.isEmpty ? nil : value
+            }
+
+            func resolvePointer(_ typePointer: UInt64, depth: Int) -> String? {
+                guard depth < 8, let typeOffset = fileOffset(for: typePointer),
+                      typeOffset + 12 <= binary.count else { return nil }
+                let dataValue = pointer(typeOffset)
+                let bits = metadataU32(binary, typeOffset + 8)
+                let code = Int((bits >> 16) & 0xff)
+                switch code {
+                case 0x01: return "void"
+                case 0x02: return "bool"
+                case 0x03: return "char"
+                case 0x04: return "sbyte"
+                case 0x05: return "byte"
+                case 0x06: return "short"
+                case 0x07: return "ushort"
+                case 0x08: return "int"
+                case 0x09: return "uint"
+                case 0x0a: return "long"
+                case 0x0b: return "ulong"
+                case 0x0c: return "float"
+                case 0x0d: return "double"
+                case 0x0e: return "string"
+                case 0x18: return "IntPtr"
+                case 0x19: return "UIntPtr"
+                case 0x1c: return "object"
+                case 0x11, 0x12:
+                    let index = Int(Int64(bitPattern: dataValue))
+                    guard index >= 0, index < typeNames.count else { return nil }
+                    let item = typeNames[index]
+                    return item.1.isEmpty ? item.0 : item.1 + "." + item.0
+                case 0x13, 0x1e:
+                    return genericParameterName(Int(Int64(bitPattern: dataValue)))
+                case 0x0f, 0x10, 0x1d:
+                    guard let nested = resolvePointer(dataValue, depth: depth + 1) else { return nil }
+                    if code == 0x0f { return nested + "*" }
+                    if code == 0x10 { return nested + "&" }
+                    return nested + "[]"
+                case 0x14:
+                    guard let arrayOffset = fileOffset(for: dataValue),
+                          arrayOffset + 9 <= binary.count else { return nil }
+                    let elementPointer = pointer(arrayOffset)
+                    guard let element = resolvePointer(elementPointer, depth: depth + 1) else { return nil }
+                    let rank = max(1, Int(binary[arrayOffset + 8]))
+                    return element + "[" + String(repeating: ",", count: max(0, rank - 1)) + "]"
+                case 0x15:
+                    guard let genericClassOffset = fileOffset(for: dataValue),
+                          genericClassOffset + 8 <= binary.count else { return nil }
+                    return resolvePointer(pointer(genericClassOffset), depth: depth + 1)
+                default:
+                    return nil
+                }
+            }
+
+            for index in 0..<typesCount {
+                if let name = resolvePointer(typePointers[index], depth: 0), !name.isEmpty {
+                    resolvedTypeNames[index] = name
+                }
+            }
+        }
+
+        return IL2CPPFieldOffsetResult(offsetsByFieldIndex: resolved, registrationFound: true, typeNamesByTypeIndex: resolvedTypeNames)
     }
 
     private static func metadataU16(_ data: Data, _ offset: Int) -> UInt16 {
