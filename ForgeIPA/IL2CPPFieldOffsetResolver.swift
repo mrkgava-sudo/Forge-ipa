@@ -142,14 +142,6 @@ enum IL2CPPFieldOffsetResolver {
            let typesArray = fileOffset(for: typesPointer),
            typesArray + Int(typesCountRaw) * 8 <= binary.count {
             let typesCount = Int(typesCountRaw)
-            var typePointers: [UInt64] = []
-            typePointers.reserveCapacity(typesCount)
-            var pointerToIndex: [UInt64: Int] = [:]
-            for index in 0..<typesCount {
-                let value = pointer(typesArray + index * 8)
-                typePointers.append(value)
-                if value != 0 { pointerToIndex[value] = index }
-            }
 
             let stringSection = metadataSection(metadata, index: 2)
             let genericSection = metadataSection(metadata, index: 12)
@@ -208,7 +200,8 @@ enum IL2CPPFieldOffsetResolver {
                     let index = Int(Int64(bitPattern: dataValue))
                     guard index >= 0, index < typeNames.count else { return nil }
                     let item = typeNames[index]
-                    return item.1.isEmpty ? item.0 : item.1 + "." + item.0
+                    let rawName = item.0.split(separator: "`", maxSplits: 1).first.map(String.init) ?? item.0
+                    return item.1.isEmpty ? rawName : item.1 + "." + rawName
                 case 0x13, 0x1e:
                     return genericParameterName(Int(Int64(bitPattern: dataValue)))
                 case 0x0f, 0x10, 0x1d:
@@ -233,7 +226,8 @@ enum IL2CPPFieldOffsetResolver {
             }
 
             for index in 0..<typesCount {
-                if let name = resolvePointer(typePointers[index], depth: 0), !name.isEmpty {
+                let typePointer = pointer(typesArray + index * 8)
+                if let name = resolvePointer(typePointer, depth: 0), !name.isEmpty {
                     resolvedTypeNames[index] = name
                 }
             }
