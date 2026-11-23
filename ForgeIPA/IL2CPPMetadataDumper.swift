@@ -34,11 +34,13 @@ enum IL2CPPMetadataDumper {
         let name: String
         let parameterStart: Int32
         let parameterCount: Int
+        let returnTypeIndex: Int32
         let flags: UInt16
     }
 
     private struct FieldDefinition {
         let name: String
+        let typeIndex: Int32
     }
 
     static func generate(from metadataURL: URL, outputDirectory: URL) throws -> IL2CPPMetadataDumpResult {
@@ -167,6 +169,7 @@ enum IL2CPPMetadataDumper {
                 name: stringAt(try i32(base)),
                 parameterStart: try i32(base + parameterStartOffset),
                 parameterCount: Int(try u16(base + parameterCountOffset)),
+                returnTypeIndex: try i32(base + 8),
                 flags: try u16(base + flagsOffset)
             ))
         }
@@ -175,7 +178,7 @@ enum IL2CPPMetadataDumper {
         fields.reserveCapacity(fieldCount)
         for index in 0..<fieldCount {
             let base = fieldSection.offset + index * fieldStride
-            fields.append(FieldDefinition(name: stringAt(try i32(base))))
+            fields.append(FieldDefinition(name: stringAt(try i32(base)), typeIndex: try i32(base + 4)))
         }
 
         func parameterName(_ index: Int) -> String {
