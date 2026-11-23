@@ -56,6 +56,7 @@ enum IL2CPPMetadataDumper {
 
     private struct EventDefinition {
         let name: String
+        let typeIndex: Int32
         let add: Int32
         let remove: Int32
     }
@@ -231,6 +232,7 @@ enum IL2CPPMetadataDumper {
             let base = eventSection.offset + index * eventStride
             events.append(EventDefinition(
                 name: stringAt(try i32(base)),
+                typeIndex: try i32(base + 4),
                 add: try i32(base + 8),
                 remove: try i32(base + 12)
             ))
@@ -304,9 +306,13 @@ enum IL2CPPMetadataDumper {
                     for propertyIndex in start..<end {
                         let property = properties[propertyIndex]
                         let propertyName = safeIdentifier(property.name, fallback: "Property_\(propertyIndex)")
+                        let getterIndex = Int(property.getter)
+                        let propertyType = property.getter >= 0 && getterIndex < methods.count
+                            ? (nativeResolution?.typeNamesByTypeIndex[Int(methods[getterIndex].returnTypeIndex)] ?? "object")
+                            : "object"
                         let accessors = (property.getter >= 0 ? "get; " : "") + (property.setter >= 0 ? "set; " : "")
-                        output += "\(indent)    // Property type index is resolved from the native type table in a later pass.\n"
-                        output += "\(indent)    public object \(propertyName) { \(accessors)}\n"
+                        output += "\(indent)    // Property accessors: getter=\(property.getter), setter=\(property.setter).\n"
+                        output += "\(indent)    public \(propertyType) \(propertyName) { \(accessors)}\n"
                     }
                 }
             }
@@ -341,8 +347,9 @@ enum IL2CPPMetadataDumper {
                         let event = events[eventIndex]
                         let eventName = safeIdentifier(event.name, fallback: "Event_\(eventIndex)")
                         if event.add >= 0 || event.remove >= 0 {
-                            output += "\(indent)    // Event type index is unresolved until native type registration is parsed.\n"
-                            output += "\(indent)    public event Action \(eventName);\n"
+                            let eventType = nativeResolution?.typeNamesByTypeIndex[Int(event.typeIndex)] ?? "Action"
+                            output += "\(indent)    // Event Il2CppType index: \(event.typeIndex).\n"
+                            output += "\(indent)    public event \(eventType) \(eventName);\n"
                         }
                     }
                 }
