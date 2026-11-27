@@ -101,14 +101,21 @@ struct GiftAnimationView: View {
     let filename: String
     var body: some View {
         Group {
-            if let url = Bundle.main.url(forResource: filename, withExtension: "json", subdirectory: "Animations") {
+            // Prefer the bundled PNG so every gift has a reliable visible icon.
+            if let url = Bundle.main.url(forResource: filename, withExtension: "png", subdirectory: "Images"),
+               let image = UIImage(contentsOfFile: url.path) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else if let url = Bundle.main.url(forResource: filename, withExtension: "json", subdirectory: "Animations") {
                 LottieView(animation: .filepath(url.path))
                     .playing(loopMode: .loop)
-            } else if let url = Bundle.main.url(forResource: filename, withExtension: "png", subdirectory: "Images"),
-                      let image = UIImage(contentsOfFile: url.path) {
-                Image(uiImage: image).resizable().scaledToFit()
             } else {
-                Image(systemName: "gift.fill").resizable().scaledToFit().foregroundStyle(.cyan).padding(25)
+                Image(systemName: "gift.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.cyan)
+                    .padding(25)
             }
         }
     }
