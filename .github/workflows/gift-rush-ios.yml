@@ -1,0 +1,43 @@
+name: Gift Rush iOS IPA
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "GiftRush/**"
+      - ".github/workflows/gift-rush-ios.yml"
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Download Telegram gift assets
+        run: |
+          git clone --depth 1 https://github.com/denzyve/cdn-telegram-gifts.git /tmp/cdn-telegram-gifts
+          python3 GiftRush/prepare_assets.py /tmp/cdn-telegram-gifts GiftRush
+      - name: Generate Xcode project
+        run: xcodegen generate --spec GiftRush/project.yml
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project GiftRush/GiftRush.xcodeproj -scheme GiftRush
+      - name: Build unsigned iOS app
+        run: |
+          xcodebuild -project GiftRush/GiftRush.xcodeproj \
+            -scheme GiftRush \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/Payload
+          cp -R build/DerivedData/Build/Products/Release-iphoneos/GiftRush.app build/Payload/
+          cd build
+          /usr/bin/zip -qry GiftRush-unsigned.ipa Payload
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GiftRush-unsigned-IPA
+          path: build/GiftRush-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
