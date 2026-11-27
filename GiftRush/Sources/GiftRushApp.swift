@@ -21,7 +21,8 @@ struct Gift: Identifiable, Decodable, Hashable {
 final class GiftStore: ObservableObject {
     @Published var gifts: [Gift] = []
     init() {
-        guard let url = Bundle.main.url(forResource: "gifts", withExtension: "json"),
+        guard let url = Bundle.main.url(forResource: "gifts", withExtension: "json", subdirectory: "Gifts")
+                ?? Bundle.main.url(forResource: "gifts", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let items = try? JSONDecoder().decode([Gift].self, from: data) else { return }
         gifts = items
@@ -30,6 +31,11 @@ final class GiftStore: ObservableObject {
 
 struct GiftRushRootView: View {
     @StateObject private var store = GiftStore()
+    @State private var searchText = ""
+    private var filteredGifts: [Gift] {
+        guard !searchText.isEmpty else { return store.gifts }
+        return store.gifts.filter { String($0.id).localizedCaseInsensitiveContains(searchText) }
+    }
     var body: some View {
         TabView {
             NavigationStack {
@@ -45,7 +51,7 @@ struct GiftRushRootView: View {
                         }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
                             .background(.cyan.opacity(0.09), in: RoundedRectangle(cornerRadius: 22))
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 12)], spacing: 12) {
-                            ForEach(store.gifts) { gift in
+                            ForEach(filteredGifts) { gift in
                                 NavigationLink { GiftDetailView(gift: gift) } label: { GiftCard(gift: gift) }
                                     .buttonStyle(.plain)
                             }
@@ -54,7 +60,7 @@ struct GiftRushRootView: View {
                 }
                 .background(Color(uiColor: .systemGroupedBackground))
                 .navigationTitle("Подарки")
-                .searchable(text: .constant(""), prompt: "Подарки")
+                .searchable(text: $searchText, prompt: "Подарки")
             }.tabItem { Label("Каталог", systemImage: "gift.fill") }
 
             CatchGameView(gifts: store.gifts)
@@ -99,17 +105,29 @@ struct GiftDetailView: View {
 
 struct GiftAnimationView: View {
     let filename: String
+
+    private var animationURL: URL? {
+        Bundle.main.url(forResource: filename, withExtension: "json", subdirectory: "Gifts/Animations")
+            ?? Bundle.main.url(forResource: filename, withExtension: "json", subdirectory: "Animations")
+            ?? Bundle.main.url(forResource: filename, withExtension: "json")
+    }
+
+    private var imageURL: URL? {
+        Bundle.main.url(forResource: filename, withExtension: "png", subdirectory: "Gifts/Images")
+            ?? Bundle.main.url(forResource: filename, withExtension: "png", subdirectory: "Images")
+            ?? Bundle.main.url(forResource: filename, withExtension: "png")
+    }
+
     var body: some View {
         Group {
-            // Prefer the bundled PNG so every gift has a reliable visible icon.
-            if let url = Bundle.main.url(forResource: filename, withExtension: "png", subdirectory: "Images"),
-               let image = UIImage(contentsOfFile: url.path) {
+            // TGS files are converted to Lottie JSON during the build. Play the original animation first.
+            if let url = animationURL {
+                LottieView(animation: .filepath(url.path))
+                    .playing(loopMode: .loop)
+            } else if let url = imageURL, let image = UIImage(contentsOfFile: url.path) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-            } else if let url = Bundle.main.url(forResource: filename, withExtension: "json", subdirectory: "Animations") {
-                LottieView(animation: .filepath(url.path))
-                    .playing(loopMode: .loop)
             } else {
                 Image(systemName: "gift.fill")
                     .resizable()
