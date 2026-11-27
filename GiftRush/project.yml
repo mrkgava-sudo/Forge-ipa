@@ -1,0 +1,30 @@
+name: GiftRush
+options:
+  bundleIdPrefix: com.mrkgava
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  Lottie:
+    url: https://github.com/airbnb/lottie-ios.git
+    from: 4.5.2
+targets:
+  GiftRush:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Gifts
+        buildPhase: resources
+    dependencies:
+      - package: Lottie
+        product: Lottie
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mrkgava.giftrush
+        PRODUCT_NAME: GiftRush
+        INFOPLIST_KEY_CFBundleDisplayName: Gift Rush
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        GENERATE_INFOPLIST_FILE: YES
